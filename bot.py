@@ -3,20 +3,22 @@ from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
 
 TOKEN = os.environ["BOT_TOKEN"]
+LOCAL_API = os.environ["LOCAL_BOT_API"]
+
+app = (
+    Application.builder()
+    .token(TOKEN)
+    .base_url(LOCAL_API + "/bot")
+    .base_file_url(LOCAL_API + "/file/bot")
+    .local_mode(True)
+    .build()
+)
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if context.args:
-        quality = context.args[0]
-        await update.message.reply_text(
-            f"Selected: {quality}\n\n"
-            "Episode files will appear here."
-        )
-    else:
-        await update.message.reply_text(
-            "Welcome! Choose a quality from the channel."
-        )
+    await update.message.reply_text(
+        "Welcome! Choose a quality from the channel."
+    )
 
-app = Application.builder().token(TOKEN).build()
 app.add_handler(CommandHandler("start", start))
 
 app.run_polling()
