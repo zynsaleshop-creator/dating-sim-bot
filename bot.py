@@ -6,7 +6,21 @@ TOKEN = os.environ["BOT_TOKEN"]
 LOCAL_API = os.environ["LOCAL_BOT_API"]
 
 STORAGE_CHAT_ID = -1003947631814
-EPISODE_8_MESSAGE_ID = 2
+
+EPISODES_480P = {
+    1: 3,
+    2: 4,
+    3: 5,
+    4: 6,
+    5: 7,
+    6: 8,
+    7: 9,
+    8: 10,
+    9: 11,
+    10: 12,
+    11: 13,
+    12: 19,
+}
 
 app = (
     Application.builder()
@@ -34,17 +48,40 @@ async def quality(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
 
     if query.data == "480p":
-        await context.bot.copy_message(
-            chat_id=query.from_user.id,
-            from_chat_id=STORAGE_CHAT_ID,
-            message_id=EPISODE_8_MESSAGE_ID
+        keyboard = []
+
+        for ep in EPISODES_480P:
+            keyboard.append([
+                InlineKeyboardButton(
+                    f"Episode {ep}",
+                    callback_data=f"ep_{ep}"
+                )
+            ])
+
+        await query.message.reply_text(
+            "📺 Choose an episode:",
+            reply_markup=InlineKeyboardMarkup(keyboard)
         )
     else:
         await query.message.reply_text(
             "This quality is not available yet."
         )
 
+async def episode(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+
+    ep = int(query.data.split("_")[1])
+    message_id = EPISODES_480P[ep]
+
+    await context.bot.copy_message(
+        chat_id=query.from_user.id,
+        from_chat_id=STORAGE_CHAT_ID,
+        message_id=message_id
+    )
+
 app.add_handler(CommandHandler("start", start))
-app.add_handler(CallbackQueryHandler(quality))
+app.add_handler(CallbackQueryHandler(quality, pattern="^(480p|720p|1080p)$"))
+app.add_handler(CallbackQueryHandler(episode, pattern="^ep_"))
 
 app.run_polling()
