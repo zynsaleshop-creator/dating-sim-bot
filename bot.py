@@ -6,7 +6,7 @@ TOKEN = os.environ["BOT_TOKEN"]
 LOCAL_API = os.environ["LOCAL_BOT_API"]
 
 STORAGE_CHAT_ID = -1003947631814
-CHANNEL = "@DatingSimAnime"
+CHANNEL = "@ZynAnimeHub"
 
 EPISODES_480P = {
     1: 3, 2: 4, 3: 5, 4: 6, 5: 7, 6: 8,
