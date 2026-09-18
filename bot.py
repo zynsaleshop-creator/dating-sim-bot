@@ -18,8 +18,18 @@ ANIME = {
                 "name": "Season 1",
                 "episodes": {
                     "480p": {
-                        1: 3, 2: 4, 3: 5, 4: 6, 5: 7, 6: 8,
-                        7: 9, 8: 10, 9: 11, 10: 12, 11: 13, 12: 19
+                        1: 3,
+                        2: 4,
+                        3: 5,
+                        4: 6,
+                        5: 7,
+                        6: 8,
+                        7: 9,
+                        8: 10,
+                        9: 11,
+                        10: 12,
+                        11: 13,
+                        12: 19
                     },
                     "720p": {},
                     "1080p": {}
@@ -30,8 +40,16 @@ ANIME = {
                 "name": "Season 2",
                 "episodes": {
                     "480p": {
-                        1: 14, 2: 15, 3: 16, 4: 17, 5: 18,
-                        6: 20, 7: 21, 8: 22, 9: 23, 10: 24
+                        1: 14,
+                        2: 15,
+                        3: 16,
+                        4: 17,
+                        5: 18,
+                        6: 20,
+                        7: 21,
+                        8: 22,
+                        9: 23,
+                        10: 24
                     },
                     "720p": {},
                     "1080p": {}
@@ -113,26 +131,26 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def post(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
-    anime_id = "dating_sim"
-    anime = ANIME[anime_id]
+    anime = ANIME["dating_sim"]
 
+    # Post BOTH seasons every time /post is used
     for season_id, season in anime["seasons"].items():
 
         keyboard = [
             [
                 InlineKeyboardButton(
                     "480p",
-                    url=f"https://t.me/{BOT_USERNAME}?start={anime_id}-{season_id}-480p"
+                    url=f"https://t.me/{BOT_USERNAME}?start=dating_sim-{season_id}-480p"
                 ),
                 InlineKeyboardButton(
                     "720p",
-                    url=f"https://t.me/{BOT_USERNAME}?start={anime_id}-{season_id}-720p"
+                    url=f"https://t.me/{BOT_USERNAME}?start=dating_sim-{season_id}-720p"
                 )
             ],
             [
                 InlineKeyboardButton(
                     "1080p",
-                    url=f"https://t.me/{BOT_USERNAME}?start={anime_id}-{season_id}-1080p"
+                    url=f"https://t.me/{BOT_USERNAME}?start=dating_sim-{season_id}-1080p"
                 )
             ]
         ]
@@ -147,7 +165,7 @@ async def post(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
     await update.message.reply_text(
-        "✅ Seasons posted to Zyn Anime Hub."
+        "✅ Season 1 and Season 2 posted successfully."
     )
 
 
