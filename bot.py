@@ -70,6 +70,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     episodes = season["episodes"].get(quality, {})
 
                     if episodes:
+
                         keyboard = [
                             [
                                 InlineKeyboardButton(
@@ -159,6 +160,8 @@ async def check_membership(update: Update, context: ContextTypes.DEFAULT_TYPE):
     _, anime_id, season_id, quality = query.data.split("|")
 
     try:
+
+        # Check membership
         member = await context.bot.get_chat_member(
             chat_id=REQUIRED_CHANNEL,
             user_id=query.from_user.id
@@ -187,23 +190,49 @@ async def check_membership(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             return
 
+        # Delete the Join/Try Again message
+        try:
+            await query.message.delete()
+        except Exception:
+            pass
+
+        # Temporary checking message
+        checking_message = await context.bot.send_message(
+            chat_id=query.from_user.id,
+            text="🔎 Checking your channel membership..."
+        )
+
+        await asyncio.sleep(1)
+
+        # Delete checking message
+        try:
+            await checking_message.delete()
+        except Exception:
+            pass
+
         anime = ANIME[anime_id]
         season = anime["seasons"][season_id]
         episodes = season["episodes"].get(quality, {})
 
         if not episodes:
-            await query.message.reply_text(
-                f"❌ {quality} is not available yet."
+            await context.bot.send_message(
+                chat_id=query.from_user.id,
+                text=f"❌ {quality} is not available yet."
             )
             return
 
-        await query.message.reply_text(
-            f"✅ Joined successfully!\n\n"
-            f"🎬 Sending {anime['title']} — {season['name']}\n"
-            f"🎞 Quality: {quality}\n\n"
-            "Please wait while I send all available episodes..."
+        # Sending message
+        sending_message = await context.bot.send_message(
+            chat_id=query.from_user.id,
+            text=(
+                "✅ Joined successfully!\n\n"
+                f"🎬 Sending {anime['title']} — {season['name']}\n"
+                f"🎞 Quality: {quality}\n\n"
+                "Please wait while I send all available episodes..."
+            )
         )
 
+        # Send all episodes in order
         for ep in sorted(episodes.keys()):
 
             message_id = episodes[ep]
@@ -216,13 +245,24 @@ async def check_membership(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
             await asyncio.sleep(1)
 
-        # Separate END OF SEASON message
+        # Delete sending message after all files are sent
+        try:
+            await sending_message.delete()
+        except Exception:
+            pass
+
+        # Big / prominent END OF SEASON message
         await context.bot.send_message(
             chat_id=query.from_user.id,
-            text=f"🏁 END OF {season['name'].upper()}"
+            text=(
+                "🏁🏁🏁\n"
+                f"🎬 **END OF {season['name'].upper()}**\n"
+                "🏁🏁🏁"
+            ),
+            parse_mode="Markdown"
         )
 
-        # Separate channel buttons message
+        # Separate channel buttons
         keyboard = [
             [
                 InlineKeyboardButton(
