@@ -73,18 +73,20 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         keyboard = [
                             [
                                 InlineKeyboardButton(
-                                    f"Episode {ep}",
-                                    callback_data=f"ep|{anime_id}|{season_id}|{quality}|{ep}"
+                                    "📢 Join Channel",
+                                    url="https://t.me/zynanime"
+                                )
+                            ],
+                            [
+                                InlineKeyboardButton(
+                                    "🔄 Try Again",
+                                    callback_data=f"check|{anime_id}|{season_id}|{quality}"
                                 )
                             ]
-                            for ep in episodes
                         ]
 
                         await update.message.reply_text(
-                            f"🎬 {anime['title']}\n"
-                            f"📺 {season['name']}\n"
-                            f"🎞 Quality: {quality}\n\n"
-                            "Choose an episode:",
+                            "🔒 Please join our channel first to get these files.",
                             reply_markup=InlineKeyboardMarkup(keyboard)
                         )
                         return
@@ -146,65 +148,6 @@ async def post(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(
         "✅ Season 1 and Season 2 posted successfully."
-    )
-
-
-async def episode(update: Update, context: ContextTypes.DEFAULT_TYPE):
-
-    query = update.callback_query
-    await query.answer()
-
-    _, anime_id, season_id, quality, ep = query.data.split("|")
-    ep = int(ep)
-
-    anime = ANIME.get(anime_id)
-
-    if not anime:
-        await query.message.reply_text("❌ Anime not found.")
-        return
-
-    season = anime["seasons"].get(season_id)
-
-    if not season:
-        await query.message.reply_text("❌ Season not found.")
-        return
-
-    message_id = season["episodes"].get(quality, {}).get(ep)
-
-    if not message_id:
-        await query.message.reply_text(
-            "❌ This episode is not available yet."
-        )
-        return
-
-    await send_join_message(
-        query.message,
-        anime_id,
-        season_id,
-        quality
-    )
-
-
-async def send_join_message(message, anime_id, season_id, quality):
-
-    keyboard = [
-        [
-            InlineKeyboardButton(
-                "📢 Join Channel",
-                url="https://t.me/zynanime"
-            )
-        ],
-        [
-            InlineKeyboardButton(
-                "🔄 Try Again",
-                callback_data=f"check|{anime_id}|{season_id}|{quality}"
-            )
-        ]
-    ]
-
-    await message.reply_text(
-        "🔒 Please join our channel first to get these files.",
-        reply_markup=InlineKeyboardMarkup(keyboard)
     )
 
 
@@ -273,7 +216,13 @@ async def check_membership(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
             await asyncio.sleep(1)
 
-        # END OF SEASON + CHANNEL BUTTONS
+        # Separate END OF SEASON message
+        await context.bot.send_message(
+            chat_id=query.from_user.id,
+            text=f"🏁 END OF {season['name'].upper()}"
+        )
+
+        # Separate channel buttons message
         keyboard = [
             [
                 InlineKeyboardButton(
@@ -289,12 +238,7 @@ async def check_membership(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         await context.bot.send_message(
             chat_id=query.from_user.id,
-            text=(
-                f"🏁 END OF {season['name'].upper()}\n\n"
-                f"🎬 {anime['title']}\n"
-                f"🎞 Quality: {quality}\n\n"
-                "📺 Follow our channels for more anime:"
-            ),
+            text="📺 Follow our channels for more anime:",
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
 
@@ -306,13 +250,6 @@ async def check_membership(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 app.add_handler(CommandHandler("start", start))
 app.add_handler(CommandHandler("post", post))
-
-app.add_handler(
-    CallbackQueryHandler(
-        episode,
-        pattern=r"^ep\|"
-    )
-)
 
 app.add_handler(
     CallbackQueryHandler(
