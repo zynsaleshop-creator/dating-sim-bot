@@ -3,7 +3,10 @@ async def episode(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
 
-    # Check required channel membership
+    # Required channel
+    REQUIRED_CHANNEL = "@zynanime"
+
+    # Check if user joined
     member = await context.bot.get_chat_member(
         chat_id=REQUIRED_CHANNEL,
         user_id=query.from_user.id
@@ -27,9 +30,8 @@ async def episode(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         await query.message.reply_text(
             "⚠️ Please join Zyn Anime first.\n\n"
-            "After joining, tap **I've Joined** to get your episode.",
-            reply_markup=InlineKeyboardMarkup(keyboard),
-            parse_mode="Markdown"
+            "After joining, tap 'I've Joined' to get your episode.",
+            reply_markup=InlineKeyboardMarkup(keyboard)
         )
         return
 
