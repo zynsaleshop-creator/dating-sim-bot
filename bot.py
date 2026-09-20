@@ -1,4 +1,5 @@
 import os
+import asyncio
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
 
@@ -69,22 +70,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     episodes = season["episodes"].get(quality, {})
 
                     if episodes:
-                        keyboard = [
-                            [
-                                InlineKeyboardButton(
-                                    f"Episode {ep}",
-                                    callback_data=f"ep|{anime_id}|{season_id}|{quality}|{ep}"
-                                )
-                            ]
-                            for ep in episodes
-                        ]
-
-                        await update.message.reply_text(
-                            f"🎬 {anime['title']}\n"
-                            f"📺 {season['name']}\n"
-                            f"🎞 Quality: {quality}\n\n"
-                            "Choose an episode:",
-                            reply_markup=InlineKeyboardMarkup(keyboard)
+                        await send_quality_request(
+                            update,
+                            anime_id,
+                            season_id,
+                            quality
                         )
                         return
 
@@ -105,6 +95,29 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "📚 Find your anime in our main channel:\n"
         "👉 Zyn Anime Hub\n\n"
         "Select an anime there and choose your preferred quality.",
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
+
+
+async def send_quality_request(update, anime_id, season_id, quality):
+
+    keyboard = [
+        [
+            InlineKeyboardButton(
+                "📢 Join Channel",
+                url="https://t.me/zynanime"
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                "🔄 Try Again",
+                callback_data=f"check|{anime_id}|{season_id}|{quality}"
+            )
+        ]
+    ]
+
+    await update.message.reply_text(
+        "🔒 Please join our channel first to get these files.",
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
 
@@ -148,84 +161,12 @@ async def post(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
-async def episode(update: Update, context: ContextTypes.DEFAULT_TYPE):
-
-    query = update.callback_query
-    await query.answer()
-
-    _, anime_id, season_id, quality, ep = query.data.split("|")
-    ep = int(ep)
-
-    anime = ANIME.get(anime_id)
-
-    if not anime:
-        await query.message.reply_text("❌ Anime not found.")
-        return
-
-    season = anime["seasons"].get(season_id)
-
-    if not season:
-        await query.message.reply_text("❌ Season not found.")
-        return
-
-    message_id = season["episodes"].get(quality, {}).get(ep)
-
-    if not message_id:
-        await query.message.reply_text(
-            "❌ This episode is not available yet."
-        )
-        return
-
-    # Check if user joined the required channel
-    try:
-        member = await context.bot.get_chat_member(
-            chat_id=REQUIRED_CHANNEL,
-            user_id=query.from_user.id
-        )
-
-        if member.status not in ["member", "administrator", "creator"]:
-            keyboard = [
-                [
-                    InlineKeyboardButton(
-                        "📢 Join Channel",
-                        url="https://t.me/zynanime"
-                    )
-                ],
-                [
-                    InlineKeyboardButton(
-                        "🔄 Try Again",
-                        callback_data=f"check|{anime_id}|{season_id}|{quality}|{ep}"
-                    )
-                ]
-            ]
-
-            await query.message.reply_text(
-                "🔒 Please join our channel first to get this file.",
-                reply_markup=InlineKeyboardMarkup(keyboard)
-            )
-            return
-
-    except Exception:
-        await query.message.reply_text(
-            "⚠️ I couldn't check your channel membership. Please try again."
-        )
-        return
-
-    # User is already a member → send file
-    await context.bot.copy_message(
-        chat_id=query.from_user.id,
-        from_chat_id=STORAGE_CHAT_ID,
-        message_id=message_id
-    )
-
-
 async def check_membership(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     query = update.callback_query
     await query.answer()
 
-    _, anime_id, season_id, quality, ep = query.data.split("|")
-    ep = int(ep)
+    _, anime_id, season_id, quality = query.data.split("|")
 
     try:
         member = await context.bot.get_chat_member(
@@ -245,32 +186,62 @@ async def check_membership(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 [
                     InlineKeyboardButton(
                         "🔄 Try Again",
-                        callback_data=f"check|{anime_id}|{season_id}|{quality}|{ep}"
+                        callback_data=f"check|{anime_id}|{season_id}|{quality}"
                     )
                 ]
             ]
 
             await query.message.reply_text(
-                "❌ Please join this channel first to get this file.",
+                "❌ Please join this channel first to get these files.",
                 reply_markup=InlineKeyboardMarkup(keyboard)
             )
             return
 
-        # Joined → find the episode
+        # Joined successfully
         anime = ANIME[anime_id]
         season = anime["seasons"][season_id]
-        message_id = season["episodes"][quality].get(ep)
+        episodes = season["episodes"].get(quality, {})
 
-        if not message_id:
+        if not episodes:
             await query.message.reply_text(
-                "❌ This episode is not available yet."
+                f"❌ {quality} is not available yet."
             )
             return
 
-        await context.bot.copy_message(
+        await query.message.reply_text(
+            f"✅ Joined successfully!\n\n"
+            f"🎬 Sending {anime['title']} — {season['name']}\n"
+            f"🎞 Quality: {quality}\n\n"
+            "Please wait while I send all available episodes..."
+        )
+
+        # Send episodes in order
+        for ep in sorted(episodes.keys()):
+
+            message_id = episodes[ep]
+
+            await context.bot.copy_message(
+                chat_id=query.from_user.id,
+                from_chat_id=STORAGE_CHAT_ID,
+                message_id=message_id
+            )
+
+            # Small delay to keep files ordered and avoid flooding
+            await asyncio.sleep(1)
+
+        # End of season message
+        await context.bot.send_message(
             chat_id=query.from_user.id,
-            from_chat_id=STORAGE_CHAT_ID,
-            message_id=message_id
+            text=(
+                f"🏁 END OF {season['name'].upper()}\n\n"
+                f"🎬 {anime['title']}\n"
+                f"🎞 Quality: {quality}\n\n"
+                "━━━━━━━━━━━━━━\n"
+                "📺 MAIN CHANNEL\n"
+                "👉 @ZynAnimeHub\n\n"
+                "📢 MORE ANIME\n"
+                "👉 @ZynAnime"
+            )
         )
 
     except Exception:
@@ -281,13 +252,6 @@ async def check_membership(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 app.add_handler(CommandHandler("start", start))
 app.add_handler(CommandHandler("post", post))
-
-app.add_handler(
-    CallbackQueryHandler(
-        episode,
-        pattern=r"^ep\|"
-    )
-)
 
 app.add_handler(
     CallbackQueryHandler(
