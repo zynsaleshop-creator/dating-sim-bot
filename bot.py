@@ -220,29 +220,29 @@ async def check_membership(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
             message_id = episodes[ep]
 
-            await context.bot.copy_message(
-                chat_id=query.from_user.id,
-                from_chat_id=STORAGE_CHAT_ID,
-                message_id=message_id
-            )
-
-            # Small delay to keep files ordered and avoid flooding
-            await asyncio.sleep(1)
-
-        # End of season message
-        await context.bot.send_message(
-            chat_id=query.from_user.id,
-            text=(
-                f"🏁 END OF {season['name'].upper()}\n\n"
-                f"🎬 {anime['title']}\n"
-                f"🎞 Quality: {quality}\n\n"
-                "━━━━━━━━━━━━━━\n"
-                "📺 MAIN CHANNEL\n"
-                "👉 @ZynAnimeHub\n\n"
-                "📢 MORE ANIME\n"
-                "👉 @ZynAnime"
-            )
+            keyboard = [
+    [
+        InlineKeyboardButton(
+            "ZynAnimeHub",
+            url="https://t.me/ZynAnimeHub"
+        ),
+        InlineKeyboardButton(
+            "ZynAnime",
+            url="https://t.me/zynanime"
         )
+    ]
+]
+
+await context.bot.send_message(
+    chat_id=query.from_user.id,
+    text=(
+        f"🏁 END OF {season['name'].upper()}\n\n"
+        f"🎬 {anime['title']}\n"
+        f"🎞 Quality: {quality}\n\n"
+        "📺 Follow our channels for more anime:"
+    ),
+    reply_markup=InlineKeyboardMarkup(keyboard)
+)
 
     except Exception:
         await query.message.reply_text(
