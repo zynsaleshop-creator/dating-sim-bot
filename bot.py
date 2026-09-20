@@ -221,7 +221,7 @@ async def check_membership(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
 
 
-        # Delete Join / Try Again message
+        # Delete the Join / Try Again message immediately
         try:
             await query.message.delete()
         except Exception:
@@ -243,36 +243,33 @@ async def check_membership(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
 
 
-        # Joined successfully message
-        joined_message = await context.bot.send_message(
-            chat_id=query.from_user.id,
-            text=(
-                "✅ Joined successfully!\n\n"
-                f"🎬 {anime['title']} — {season['name']}\n"
-                f"🎞 Quality: {quality}"
-            )
-        )
-
-
-        # Keep it visible briefly
-        await asyncio.sleep(1)
-
-
-        # Delete Joined successfully message
-        try:
-            await joined_message.delete()
-        except Exception:
-            pass
-
-
-        # Separate Sending files message
+        # 1️⃣ Sending files message
         sending_message = await context.bot.send_message(
             chat_id=query.from_user.id,
             text="📤 Sending files..."
         )
 
+        # Delete immediately
+        try:
+            await sending_message.delete()
+        except Exception:
+            pass
 
-        # Send all episodes in order
+
+        # 2️⃣ Searching/loading message
+        loading_message = await context.bot.send_message(
+            chat_id=query.from_user.id,
+            text="......."
+        )
+
+        # Delete immediately
+        try:
+            await loading_message.delete()
+        except Exception:
+            pass
+
+
+        # 3️⃣ Send all episodes
         for ep in sorted(episodes.keys()):
 
             message_id = episodes[ep]
@@ -286,21 +283,14 @@ async def check_membership(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await asyncio.sleep(1)
 
 
-        # Delete Sending files message
-        try:
-            await sending_message.delete()
-        except Exception:
-            pass
-
-
-        # End of season message
+        # 4️⃣ End of season
         await context.bot.send_message(
             chat_id=query.from_user.id,
             text=f"🎬 END OF {season['name'].upper()} 🏁"
         )
 
 
-        # Channel buttons
+        # 5️⃣ Channel buttons
         keyboard = [
             [
                 InlineKeyboardButton(
@@ -313,7 +303,6 @@ async def check_membership(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 )
             ]
         ]
-
 
         await context.bot.send_message(
             chat_id=query.from_user.id,
