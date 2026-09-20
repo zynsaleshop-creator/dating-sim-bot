@@ -7,28 +7,24 @@ LOCAL_API = os.environ["LOCAL_BOT_API"]
 
 STORAGE_CHAT_ID = -1003947631814
 CHANNEL = "@ZynAnimeHub"
+REQUIRED_CHANNEL = "@ZynAnime"
 BOT_USERNAME = "ZynAnimeBot"
 
-
 ANIME = {
-
     "dating_sim": {
         "title": "Trapped in a Dating Sim",
-
         "seasons": {
             "s1": {
                 "name": "Season 1",
                 "episodes": {
                     "480p": {
-                        1: 3, 2: 4, 3: 5, 4: 6,
-                        5: 7, 6: 8, 7: 9, 8: 10,
-                        9: 11, 10: 12, 11: 13, 12: 19
+                        1: 3, 2: 4, 3: 5, 4: 6, 5: 7, 6: 8,
+                        7: 9, 8: 10, 9: 11, 10: 12, 11: 13, 12: 19
                     },
                     "720p": {},
                     "1080p": {}
                 }
             },
-
             "s2": {
                 "name": "Season 2",
                 "episodes": {
@@ -41,25 +37,8 @@ ANIME = {
                 }
             }
         }
-    },
-
-
-    "tomodachi_game": {
-        "title": "Tomodachi Game",
-
-        "seasons": {
-            "s1": {
-                "name": "Season 1",
-                "episodes": {
-                    "480p": {},
-                    "720p": {},
-                    "1080p": {}
-                }
-            }
-        }
     }
 }
-
 
 app = (
     Application.builder()
@@ -90,7 +69,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     episodes = season["episodes"].get(quality, {})
 
                     if episodes:
-
                         keyboard = [
                             [
                                 InlineKeyboardButton(
@@ -133,7 +111,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def post(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
-    # Dating Sim — Season 1
     anime = ANIME["dating_sim"]
 
     for season_id, season in anime["seasons"].items():
@@ -166,41 +143,8 @@ async def post(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
 
-    # Tomodachi Game — Season 1
-    anime = ANIME["tomodachi_game"]
-
-    for season_id, season in anime["seasons"].items():
-
-        keyboard = [
-            [
-                InlineKeyboardButton(
-                    "480p",
-                    url=f"https://t.me/{BOT_USERNAME}?start=tomodachi_game-{season_id}-480p"
-                ),
-                InlineKeyboardButton(
-                    "720p",
-                    url=f"https://t.me/{BOT_USERNAME}?start=tomodachi_game-{season_id}-720p"
-                )
-            ],
-            [
-                InlineKeyboardButton(
-                    "1080p",
-                    url=f"https://t.me/{BOT_USERNAME}?start=tomodachi_game-{season_id}-1080p"
-                )
-            ]
-        ]
-
-        await context.bot.send_message(
-            chat_id=CHANNEL,
-            text=(
-                f"🎬 {anime['title']} — {season['name']}\n\n"
-                "📺 Choose your quality:"
-            ),
-            reply_markup=InlineKeyboardMarkup(keyboard)
-        )
-
     await update.message.reply_text(
-        "✅ Anime posts created successfully."
+        "✅ Season 1 and Season 2 posted successfully."
     )
 
 
@@ -210,7 +154,6 @@ async def episode(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
 
     _, anime_id, season_id, quality, ep = query.data.split("|")
-
     ep = int(ep)
 
     anime = ANIME.get(anime_id)
@@ -233,11 +176,107 @@ async def episode(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
+    # Check if user joined the required channel
+    try:
+        member = await context.bot.get_chat_member(
+            chat_id=REQUIRED_CHANNEL,
+            user_id=query.from_user.id
+        )
+
+        if member.status not in ["member", "administrator", "creator"]:
+            keyboard = [
+                [
+                    InlineKeyboardButton(
+                        "📢 Join Channel",
+                        url="https://t.me/zynanime"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        "🔄 Try Again",
+                        callback_data=f"check|{anime_id}|{season_id}|{quality}|{ep}"
+                    )
+                ]
+            ]
+
+            await query.message.reply_text(
+                "🔒 Please join our channel first to get this file.",
+                reply_markup=InlineKeyboardMarkup(keyboard)
+            )
+            return
+
+    except Exception:
+        await query.message.reply_text(
+            "⚠️ I couldn't check your channel membership. Please try again."
+        )
+        return
+
+    # User is already a member → send file
     await context.bot.copy_message(
         chat_id=query.from_user.id,
         from_chat_id=STORAGE_CHAT_ID,
         message_id=message_id
     )
+
+
+async def check_membership(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+    query = update.callback_query
+    await query.answer()
+
+    _, anime_id, season_id, quality, ep = query.data.split("|")
+    ep = int(ep)
+
+    try:
+        member = await context.bot.get_chat_member(
+            chat_id=REQUIRED_CHANNEL,
+            user_id=query.from_user.id
+        )
+
+        if member.status not in ["member", "administrator", "creator"]:
+
+            keyboard = [
+                [
+                    InlineKeyboardButton(
+                        "📢 Join Channel",
+                        url="https://t.me/zynanime"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        "🔄 Try Again",
+                        callback_data=f"check|{anime_id}|{season_id}|{quality}|{ep}"
+                    )
+                ]
+            ]
+
+            await query.message.reply_text(
+                "❌ Please join this channel first to get this file.",
+                reply_markup=InlineKeyboardMarkup(keyboard)
+            )
+            return
+
+        # Joined → find the episode
+        anime = ANIME[anime_id]
+        season = anime["seasons"][season_id]
+        message_id = season["episodes"][quality].get(ep)
+
+        if not message_id:
+            await query.message.reply_text(
+                "❌ This episode is not available yet."
+            )
+            return
+
+        await context.bot.copy_message(
+            chat_id=query.from_user.id,
+            from_chat_id=STORAGE_CHAT_ID,
+            message_id=message_id
+        )
+
+    except Exception:
+        await query.message.reply_text(
+            "⚠️ Please make sure you joined @ZynAnime, then tap Try Again."
+        )
 
 
 app.add_handler(CommandHandler("start", start))
@@ -247,6 +286,13 @@ app.add_handler(
     CallbackQueryHandler(
         episode,
         pattern=r"^ep\|"
+    )
+)
+
+app.add_handler(
+    CallbackQueryHandler(
+        check_membership,
+        pattern=r"^check\|"
     )
 )
 
