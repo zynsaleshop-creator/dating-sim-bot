@@ -78,7 +78,6 @@ ANIME = {
                     "1080p": {}
                 }
             }
-
         }
     }
 }
@@ -167,10 +166,8 @@ async def post(update: Update, context: ContextTypes.DEFAULT_TYPE):
     anime = ANIME["dating_sim"]
     details = anime["details"]
 
-    # 1️⃣ POST ANIME DETAILS
     details_text = (
         f"🎬 {anime['title']} | {anime['japanese_title']}\n\n"
-
         f"‣ Genres : {details['genres']}\n"
         f"‣ Type : {details['type']}\n"
         f"‣ Average Rating : {details['rating']}\n"
@@ -179,7 +176,6 @@ async def post(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"‣ Last aired : {details['last_aired']}\n"
         f"‣ Runtime : {details['runtime']}\n"
         f"‣ No of episodes : 24\n\n"
-
         f"{anime['description']}"
     )
 
@@ -188,7 +184,6 @@ async def post(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text=details_text
     )
 
-    # 2️⃣ POST EACH SEASON WITH QUALITY BUTTONS
     for season_id, season in anime["seasons"].items():
 
         available_episodes = sum(
@@ -232,13 +227,18 @@ async def post(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def post_tomodachi(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
-    # Space before Tomodachi Game
+    # Create a clear separation before Tomodachi Game
     await context.bot.send_message(
         chat_id=CHANNEL,
-        text="\n\n\n"
+        text="━━━━━━━━━━━━━━━━━━━━"
     )
 
-    # Tomodachi Game details only
+    await context.bot.send_message(
+        chat_id=CHANNEL,
+        text="━━━━━━━━━━━━━━━━━━━━"
+    )
+
+    # Tomodachi Game details
     await context.bot.send_message(
         chat_id=CHANNEL,
         text=(
@@ -306,7 +306,6 @@ async def check_membership(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
             return
 
-        # Delete the Join / Try Again message
         try:
             await query.message.delete()
         except Exception:
@@ -325,7 +324,6 @@ async def check_membership(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
             return
 
-        # Sending files
         sending_message = await context.bot.send_message(
             chat_id=query.from_user.id,
             text="📤 Sending files..."
@@ -336,7 +334,6 @@ async def check_membership(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception:
             pass
 
-        # Loading message
         loading_message = await context.bot.send_message(
             chat_id=query.from_user.id,
             text="......."
@@ -347,7 +344,6 @@ async def check_membership(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception:
             pass
 
-        # Send all episodes
         for ep in sorted(episodes.keys()):
 
             message_id = episodes[ep]
@@ -360,13 +356,11 @@ async def check_membership(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
             await asyncio.sleep(1)
 
-        # End of season
         await context.bot.send_message(
             chat_id=query.from_user.id,
             text=f"🎬 END OF {season['name'].upper()} 🏁"
         )
 
-        # Channel buttons
         keyboard = [
             [
                 InlineKeyboardButton(
@@ -392,6 +386,8 @@ async def check_membership(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "⚠️ Please make sure you joined @ZynAnime, then tap Try Again."
         )
 
+
+# COMMANDS
 
 app.add_handler(
     CommandHandler("start", start)
