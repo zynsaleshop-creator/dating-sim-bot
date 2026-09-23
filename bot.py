@@ -14,7 +14,27 @@ BOT_USERNAME = "ZynAnimeBot"
 
 ANIME = {
     "dating_sim": {
-        "title": "Trapped in a Dating Sim",
+        "title": "Trapped in a Dating Sim: The World of Otome Games Is Tough for Mobs",
+        "japanese_title": "Otomege Sekai wa Mob ni Kibishii Sekai desu",
+
+        "description":
+            "Office worker Leon is reincarnated into a particularly punishing dating sim "
+            "where women reign supreme and only beautiful men have a seat at the table. "
+            "But Leon has a secret weapon: he remembers everything from his past life, "
+            "including a complete playthrough of the game in which he is now trapped. "
+            "Watch Leon spark a revolution to change this new world in order to fulfill "
+            "his ultimate desire... of living a quiet, easy life in the countryside!",
+
+        "details": {
+            "genres": "Action, Fantasy, Mecha, Romance",
+            "type": "TV",
+            "rating": "71",
+            "status": "FINISHED",
+            "first_aired": "2022-4-3",
+            "last_aired": "2022-6-19",
+            "runtime": "24 minutes"
+        },
+
         "seasons": {
 
             "s1": {
@@ -126,7 +146,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
                     return
 
-
     keyboard = [[
         InlineKeyboardButton(
             "📺 Browse Anime",
@@ -146,8 +165,36 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def post(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     anime = ANIME["dating_sim"]
+    details = anime["details"]
 
+    # 1️⃣ POST ANIME DETAILS
+    details_text = (
+        f"🎬 {anime['title']} | {anime['japanese_title']}\n\n"
+
+        f"‣ Genres : {details['genres']}\n"
+        f"‣ Type : {details['type']}\n"
+        f"‣ Average Rating : {details['rating']}\n"
+        f"‣ Status : {details['status']}\n"
+        f"‣ First aired : {details['first_aired']}\n"
+        f"‣ Last aired : {details['last_aired']}\n"
+        f"‣ Runtime : {details['runtime']}\n"
+        f"‣ No of episodes : 24\n\n"
+
+        f"{anime['description']}"
+    )
+
+    await context.bot.send_message(
+        chat_id=CHANNEL,
+        text=details_text
+    )
+
+    # 2️⃣ POST EACH SEASON WITH QUALITY BUTTONS
     for season_id, season in anime["seasons"].items():
+
+        available_episodes = sum(
+            len(episodes)
+            for episodes in season["episodes"].values()
+        )
 
         keyboard = [
             [
@@ -171,14 +218,15 @@ async def post(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await context.bot.send_message(
             chat_id=CHANNEL,
             text=(
-                f"🎬 {anime['title']} — {season['name']}\n\n"
-                "📺 Choose your quality:"
+                f"🎬 {season['name']}\n\n"
+                f"📺 Episodes available: {available_episodes}\n\n"
+                "📥 Choose your quality:"
             ),
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
 
     await update.message.reply_text(
-        "✅ Season 1 and Season 2 posted successfully."
+        "✅ Dating Sim details, Season 1 and Season 2 posted successfully."
     )
 
 
@@ -220,18 +268,14 @@ async def check_membership(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
             return
 
-
-        # Delete the Join / Try Again message immediately
         try:
             await query.message.delete()
         except Exception:
             pass
 
-
         anime = ANIME[anime_id]
         season = anime["seasons"][season_id]
         episodes = season["episodes"].get(quality, {})
-
 
         if not episodes:
 
@@ -242,34 +286,26 @@ async def check_membership(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
             return
 
-
-        # 1️⃣ Sending files message
         sending_message = await context.bot.send_message(
             chat_id=query.from_user.id,
             text="📤 Sending files..."
         )
 
-        # Delete immediately
         try:
             await sending_message.delete()
         except Exception:
             pass
 
-
-        # 2️⃣ Searching/loading message
         loading_message = await context.bot.send_message(
             chat_id=query.from_user.id,
             text="......."
         )
 
-        # Delete immediately
         try:
             await loading_message.delete()
         except Exception:
             pass
 
-
-        # 3️⃣ Send all episodes
         for ep in sorted(episodes.keys()):
 
             message_id = episodes[ep]
@@ -282,15 +318,11 @@ async def check_membership(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
             await asyncio.sleep(1)
 
-
-        # 4️⃣ End of season
         await context.bot.send_message(
             chat_id=query.from_user.id,
             text=f"🎬 END OF {season['name'].upper()} 🏁"
         )
 
-
-        # 5️⃣ Channel buttons
         keyboard = [
             [
                 InlineKeyboardButton(
@@ -309,7 +341,6 @@ async def check_membership(update: Update, context: ContextTypes.DEFAULT_TYPE):
             text="📺 Follow our channels for more anime:",
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
-
 
     except Exception:
 
@@ -332,6 +363,5 @@ app.add_handler(
         pattern=r"^check\|"
     )
 )
-
 
 app.run_polling()
