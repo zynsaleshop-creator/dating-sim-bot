@@ -230,6 +230,44 @@ async def post(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
+async def post_tomodachi(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+    # Space before Tomodachi Game
+    await context.bot.send_message(
+        chat_id=CHANNEL,
+        text="\n\n\n"
+    )
+
+    # Tomodachi Game details only
+    await context.bot.send_message(
+        chat_id=CHANNEL,
+        text=(
+            "🎬 Tomodachi Game | Tomodachi Gēmu\n\n"
+
+            "‣ Genres : Psychological, Mystery, Drama, Thriller, Game\n"
+            "‣ Type : TV\n"
+            "‣ Average Rating : 75\n"
+            "‣ Status : FINISHED\n"
+            "‣ First aired : 2022-4-6\n"
+            "‣ Last aired : 2022-6-22\n"
+            "‣ Runtime : 23 minutes\n"
+            "‣ No of episodes : 12\n\n"
+
+            "Yuuichi Katagiri values friendship above everything, "
+            "but when he and his four closest friends are dragged "
+            "into a mysterious debt-repayment game, their friendship "
+            "is put to the ultimate test. Forced to participate in "
+            "psychological games involving money, trust, and betrayal, "
+            "they must work together while uncovering the hidden "
+            "secrets each of them carries."
+        )
+    )
+
+    await update.message.reply_text(
+        "✅ Tomodachi Game details posted."
+    )
+
+
 async def check_membership(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     query = update.callback_query
@@ -268,6 +306,7 @@ async def check_membership(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
             return
 
+        # Delete the Join / Try Again message
         try:
             await query.message.delete()
         except Exception:
@@ -286,6 +325,7 @@ async def check_membership(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
             return
 
+        # Sending files
         sending_message = await context.bot.send_message(
             chat_id=query.from_user.id,
             text="📤 Sending files..."
@@ -296,6 +336,7 @@ async def check_membership(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception:
             pass
 
+        # Loading message
         loading_message = await context.bot.send_message(
             chat_id=query.from_user.id,
             text="......."
@@ -306,6 +347,7 @@ async def check_membership(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception:
             pass
 
+        # Send all episodes
         for ep in sorted(episodes.keys()):
 
             message_id = episodes[ep]
@@ -318,11 +360,13 @@ async def check_membership(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
             await asyncio.sleep(1)
 
+        # End of season
         await context.bot.send_message(
             chat_id=query.from_user.id,
             text=f"🎬 END OF {season['name'].upper()} 🏁"
         )
 
+        # Channel buttons
         keyboard = [
             [
                 InlineKeyboardButton(
@@ -358,10 +402,15 @@ app.add_handler(
 )
 
 app.add_handler(
+    CommandHandler("post_tomodachi", post_tomodachi)
+)
+
+app.add_handler(
     CallbackQueryHandler(
         check_membership,
         pattern=r"^check\|"
     )
 )
+
 
 app.run_polling()
