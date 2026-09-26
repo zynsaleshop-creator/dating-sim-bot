@@ -149,11 +149,24 @@ async def deletion_timer(item):
     if wait_time > 0:
         await asyncio.sleep(wait_time)
 
+    # Delete episode files
     await delete_saved_messages(
         chat_id,
         message_ids
     )
 
+    # Delete warning and end-of-season messages
+    extra_message_ids = item.get(
+        "extra_message_ids",
+        []
+    )
+
+    await delete_saved_messages(
+        chat_id,
+        extra_message_ids
+    )
+
+    # Remove timer from pending list
     global PENDING_DELETIONS
 
     PENDING_DELETIONS = [
@@ -162,6 +175,15 @@ async def deletion_timer(item):
     ]
 
     save_pending(PENDING_DELETIONS)
+
+    # Send final confirmation
+    await app.bot.send_message(
+        chat_id=chat_id,
+        text=(
+            "Files deleted successfully ✅\n"
+            "Can request files again"
+        )
+    )
 
 
 async def restore_timers(application):
@@ -460,7 +482,10 @@ async def check_membership(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
             return
 
-        # Sending message
+        # =================================================
+        # SENDING MESSAGE
+        # =================================================
+
         sending_message = await context.bot.send_message(
             chat_id=query.from_user.id,
             text="📤 Sending files..."
@@ -471,7 +496,10 @@ async def check_membership(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception:
             pass
 
-        # Loading message
+        # =================================================
+        # LOADING MESSAGE
+        # =================================================
+
         loading_message = await context.bot.send_message(
             chat_id=query.from_user.id,
             text="......."
@@ -482,7 +510,10 @@ async def check_membership(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception:
             pass
 
-        # Store sent episode message IDs
+        # =================================================
+        # SEND EPISODES
+        # =================================================
+
         sent_message_ids = []
 
         for ep in sorted(episodes.keys()):
@@ -501,8 +532,11 @@ async def check_membership(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
             await asyncio.sleep(1)
 
-        # Warning message
-        await context.bot.send_message(
+        # =================================================
+        # WARNING MESSAGE
+        # =================================================
+
+        warning_message = await context.bot.send_message(
             chat_id=query.from_user.id,
             text=(
                 "⚠️ Files will be deleted in 15 minutes.\n\n"
@@ -511,13 +545,19 @@ async def check_membership(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
         )
 
-        # End of season
-        await context.bot.send_message(
+        # =================================================
+        # END OF SEASON MESSAGE
+        # =================================================
+
+        end_message = await context.bot.send_message(
             chat_id=query.from_user.id,
             text=f"🎬 END OF {season['name'].upper()} 🏁"
         )
 
-        # Follow buttons
+        # =================================================
+        # FOLLOW CHANNELS
+        # =================================================
+
         keyboard = [
             [
                 InlineKeyboardButton(
@@ -538,6 +578,15 @@ async def check_membership(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
         # =================================================
+        # SAVE ALL MESSAGE IDs FOR CLEANUP
+        # =================================================
+
+        extra_message_ids = [
+            warning_message.message_id,
+            end_message.message_id
+        ]
+
+        # =================================================
         # SAVE TIMER BEFORE STARTING IT
         # =================================================
 
@@ -548,19 +597,30 @@ async def check_membership(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"{query.from_user.id}-"
                 f"{int(time.time() * 1000)}"
             ),
+
             "chat_id": query.from_user.id,
+
             "message_ids": sent_message_ids,
+
+            "extra_message_ids": extra_message_ids,
+
             "delete_at": time.time() + DELETE_AFTER
         }
 
-        PENDING_DELETIONS.append(deletion_item)
+        PENDING_DELETIONS.append(
+            deletion_item
+        )
 
         # Save immediately
-        save_pending(PENDING_DELETIONS)
+        save_pending(
+            PENDING_DELETIONS
+        )
 
         # Start timer
         asyncio.create_task(
-            deletion_timer(deletion_item)
+            deletion_timer(
+                deletion_item
+            )
         )
 
     except Exception as error:
@@ -586,15 +646,24 @@ async def check_membership(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # =========================================================
 
 app.add_handler(
-    CommandHandler("start", start)
+    CommandHandler(
+        "start",
+        start
+    )
 )
 
 app.add_handler(
-    CommandHandler("post", post)
+    CommandHandler(
+        "post",
+        post
+    )
 )
 
 app.add_handler(
-    CommandHandler("post_tomodachi", post_tomodachi)
+    CommandHandler(
+        "post_tomodachi",
+        post_tomodachi
+    )
 )
 
 app.add_handler(
