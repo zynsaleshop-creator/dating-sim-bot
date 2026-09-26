@@ -1,7 +1,11 @@
 import os
 import asyncio
+import json
+import time
+
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
+
 
 TOKEN = os.environ["BOT_TOKEN"]
 LOCAL_API = os.environ["LOCAL_BOT_API"]
@@ -10,6 +14,12 @@ STORAGE_CHAT_ID = -1003947631814
 CHANNEL = "@ZynAnimeHub"
 REQUIRED_CHANNEL = "@ZynAnime"
 BOT_USERNAME = "ZynAnimeBot"
+
+# Files are deleted 15 minutes after being sent
+DELETE_AFTER = 15 * 60
+
+# Saved timer information
+PENDING_FILE = "pending_deletions.json"
 
 
 ANIME = {
@@ -20,7 +30,7 @@ ANIME = {
         "description":
             "Office worker Leon is reincarnated into a particularly punishing dating sim "
             "where women reign supreme and only beautiful men have a seat at the table. "
-            "But Leon has a secret weapon: he remembers everything from his past life, "
+            "But Leon has a secret weapon: he remembers his past life, "
             "including a complete playthrough of the game in which he is now trapped. "
             "Watch Leon spark a revolution to change this new world in order to fulfill "
             "his ultimate desire... of living a quiet, easy life in the countryside!",
@@ -93,6 +103,103 @@ app = (
 )
 
 
+# =========================================================
+# PERSISTENT TIMER FUNCTIONS
+# =========================================================
+
+def load_pending():
+
+    if not os.path.exists(PENDING_FILE):
+        return []
+
+    try:
+        with open(PENDING_FILE, "r") as file:
+            return json.load(file)
+
+    except Exception:
+        return []
+
+
+def save_pending(pending):
+
+    temp_file = PENDING_FILE + ".tmp"
+
+    with open(temp_file, "w") as file:
+        json.dump(pending, file)
+
+    os.replace(temp_file, PENDING_FILE)
+
+
+PENDING_DELETIONS = load_pending()
+
+
+async def delete_saved_messages(chat_id, message_ids):
+
+    for message_id in message_ids:
+
+        try:
+
+            await app.bot.delete_message(
+                chat_id=chat_id,
+                message_id=message_id
+            )
+
+        except Exception:
+            pass
+
+
+async def deletion_timer(item):
+
+    chat_id = item["chat_id"]
+    message_ids = item["message_ids"]
+    delete_at = item["delete_at"]
+
+    wait_time = delete_at - time.time()
+
+    if wait_time > 0:
+        await asyncio.sleep(wait_time)
+
+    await delete_saved_messages(
+        chat_id,
+        message_ids
+    )
+
+    # Remove completed timer
+    global PENDING_DELETIONS
+
+    PENDING_DELETIONS = [
+        x for x in PENDING_DELETIONS
+        if x["id"] != item["id"]
+    ]
+
+    save_pending(PENDING_DELETIONS)
+
+
+async def restore_timers():
+
+    if not PENDING_DELETIONS:
+        return
+
+    print(
+        f"🔄 Restoring {len(PENDING_DELETIONS)} pending deletion timer(s)..."
+    )
+
+    for item in list(PENDING_DELETIONS):
+
+        asyncio.create_task(
+            deletion_timer(item)
+        )
+
+
+async def post_init(application):
+
+    await restore_timers()
+
+
+# =========================================================
+# START
+# =========================================================
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     args = context.args
@@ -127,7 +234,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
                             [
                                 InlineKeyboardButton(
                                     "🔄 Try Again",
-                                    callback_data=f"check|{anime_id}|{season_id}|{quality}"
+                                    callback_data=(
+                                        f"check|{anime_id}|"
+                                        f"{season_id}|{quality}"
+                                    )
                                 )
                             ]
                         ]
@@ -160,6 +270,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
 
+
+# =========================================================
+# POST DATING SIM
+# =========================================================
 
 async def post(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
@@ -195,17 +309,26 @@ async def post(update: Update, context: ContextTypes.DEFAULT_TYPE):
             [
                 InlineKeyboardButton(
                     "480p",
-                    url=f"https://t.me/{BOT_USERNAME}?start=dating_sim-{season_id}-480p"
+                    url=(
+                        f"https://t.me/{BOT_USERNAME}"
+                        f"?start=dating_sim-{season_id}-480p"
+                    )
                 ),
                 InlineKeyboardButton(
                     "720p",
-                    url=f"https://t.me/{BOT_USERNAME}?start=dating_sim-{season_id}-720p"
+                    url=(
+                        f"https://t.me/{BOT_USERNAME}"
+                        f"?start=dating_sim-{season_id}-720p"
+                    )
                 )
             ],
             [
                 InlineKeyboardButton(
                     "1080p",
-                    url=f"https://t.me/{BOT_USERNAME}?start=dating_sim-{season_id}-1080p"
+                    url=(
+                        f"https://t.me/{BOT_USERNAME}"
+                        f"?start=dating_sim-{season_id}-1080p"
+                    )
                 )
             ]
         ]
@@ -225,9 +348,12 @@ async def post(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
+# =========================================================
+# POST TOMODACHI GAME
+# =========================================================
+
 async def post_tomodachi(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
-    # Create a clear separation before Tomodachi Game
     await context.bot.send_message(
         chat_id=CHANNEL,
         text="━━━━━━━━━━━━━━━━━━━━"
@@ -238,7 +364,6 @@ async def post_tomodachi(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text="━━━━━━━━━━━━━━━━━━━━"
     )
 
-    # Tomodachi Game details
     await context.bot.send_message(
         chat_id=CHANNEL,
         text=(
@@ -268,6 +393,10 @@ async def post_tomodachi(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
+# =========================================================
+# MEMBERSHIP + FILE DELIVERY
+# =========================================================
+
 async def check_membership(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     query = update.callback_query
@@ -282,7 +411,11 @@ async def check_membership(update: Update, context: ContextTypes.DEFAULT_TYPE):
             user_id=query.from_user.id
         )
 
-        if member.status not in ["member", "administrator", "creator"]:
+        if member.status not in [
+            "member",
+            "administrator",
+            "creator"
+        ]:
 
             keyboard = [
                 [
@@ -294,7 +427,10 @@ async def check_membership(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 [
                     InlineKeyboardButton(
                         "🔄 Try Again",
-                        callback_data=f"check|{anime_id}|{season_id}|{quality}"
+                        callback_data=(
+                            f"check|{anime_id}|"
+                            f"{season_id}|{quality}"
+                        )
                     )
                 ]
             ]
@@ -324,6 +460,7 @@ async def check_membership(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
             return
 
+        # Sending message
         sending_message = await context.bot.send_message(
             chat_id=query.from_user.id,
             text="📤 Sending files..."
@@ -334,6 +471,7 @@ async def check_membership(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception:
             pass
 
+        # Loading message
         loading_message = await context.bot.send_message(
             chat_id=query.from_user.id,
             text="......."
@@ -344,23 +482,42 @@ async def check_membership(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception:
             pass
 
+        # Store the sent episode message IDs
+        sent_message_ids = []
+
         for ep in sorted(episodes.keys()):
 
             message_id = episodes[ep]
 
-            await context.bot.copy_message(
+            sent_message = await context.bot.copy_message(
                 chat_id=query.from_user.id,
                 from_chat_id=STORAGE_CHAT_ID,
                 message_id=message_id
             )
 
+            sent_message_ids.append(
+                sent_message.message_id
+            )
+
             await asyncio.sleep(1)
 
+        # Tell user about deletion
+        await context.bot.send_message(
+            chat_id=query.from_user.id,
+            text=(
+                "⚠️ Files will be deleted in 15 minutes.\n\n"
+                "Please save/download them now or send them to another chat "
+                "if you want to keep them."
+            )
+        )
+
+        # End of season
         await context.bot.send_message(
             chat_id=query.from_user.id,
             text=f"🎬 END OF {season['name'].upper()} 🏁"
         )
 
+        # Follow buttons
         keyboard = [
             [
                 InlineKeyboardButton(
@@ -380,14 +537,53 @@ async def check_membership(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
 
-    except Exception:
+        # =================================================
+        # SAVE TIMER BEFORE STARTING IT
+        # =================================================
 
-        await query.message.reply_text(
-            "⚠️ Please make sure you joined @ZynAnime, then tap Try Again."
+        global PENDING_DELETIONS
+
+        deletion_item = {
+            "id": (
+                f"{query.from_user.id}-"
+                f"{int(time.time() * 1000)}"
+            ),
+            "chat_id": query.from_user.id,
+            "message_ids": sent_message_ids,
+            "delete_at": time.time() + DELETE_AFTER
+        }
+
+        PENDING_DELETIONS.append(deletion_item)
+
+        # Save immediately
+        save_pending(PENDING_DELETIONS)
+
+        # Start timer
+        asyncio.create_task(
+            deletion_timer(deletion_item)
         )
 
+    except Exception as error:
 
+        print(
+            "⚠️ Membership/delivery error:",
+            error
+        )
+
+        try:
+
+            await query.message.reply_text(
+                "⚠️ Please make sure you joined @ZynAnime, "
+                "then tap Try Again."
+            )
+
+        except Exception:
+            pass
+
+
+# =========================================================
 # COMMANDS
+# =========================================================
 
 app.add_handler(
     CommandHandler("start", start)
@@ -409,4 +605,6 @@ app.add_handler(
 )
 
 
-app.run_polling()
+app.run_polling(
+    post_init=post_init
+)
