@@ -15,10 +15,7 @@ CHANNEL = "@ZynAnimeHub"
 REQUIRED_CHANNEL = "@ZynAnime"
 BOT_USERNAME = "ZynAnimeBot"
 
-# Files are deleted 15 minutes after being sent
 DELETE_AFTER = 15 * 60
-
-# Saved timer information
 PENDING_FILE = "pending_deletions.json"
 
 
@@ -93,16 +90,6 @@ ANIME = {
 }
 
 
-app = (
-    Application.builder()
-    .token(TOKEN)
-    .base_url(LOCAL_API + "/bot")
-    .base_file_url(LOCAL_API + "/file/bot")
-    .local_mode(True)
-    .build()
-)
-
-
 # =========================================================
 # PERSISTENT TIMER FUNCTIONS
 # =========================================================
@@ -113,10 +100,12 @@ def load_pending():
         return []
 
     try:
+
         with open(PENDING_FILE, "r") as file:
             return json.load(file)
 
     except Exception:
+
         return []
 
 
@@ -145,6 +134,7 @@ async def delete_saved_messages(chat_id, message_ids):
             )
 
         except Exception:
+
             pass
 
 
@@ -164,7 +154,6 @@ async def deletion_timer(item):
         message_ids
     )
 
-    # Remove completed timer
     global PENDING_DELETIONS
 
     PENDING_DELETIONS = [
@@ -175,9 +164,10 @@ async def deletion_timer(item):
     save_pending(PENDING_DELETIONS)
 
 
-async def restore_timers():
+async def restore_timers(application):
 
     if not PENDING_DELETIONS:
+        print("✅ No pending deletion timers.")
         return
 
     print(
@@ -191,9 +181,19 @@ async def restore_timers():
         )
 
 
-async def post_init(application):
+# =========================================================
+# APPLICATION
+# =========================================================
 
-    await restore_timers()
+app = (
+    Application.builder()
+    .token(TOKEN)
+    .base_url(LOCAL_API + "/bot")
+    .base_file_url(LOCAL_API + "/file/bot")
+    .local_mode(True)
+    .post_init(restore_timers)
+    .build()
+)
 
 
 # =========================================================
@@ -482,7 +482,7 @@ async def check_membership(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception:
             pass
 
-        # Store the sent episode message IDs
+        # Store sent episode message IDs
         sent_message_ids = []
 
         for ep in sorted(episodes.keys()):
@@ -501,7 +501,7 @@ async def check_membership(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
             await asyncio.sleep(1)
 
-        # Tell user about deletion
+        # Warning message
         await context.bot.send_message(
             chat_id=query.from_user.id,
             text=(
@@ -605,6 +605,8 @@ app.add_handler(
 )
 
 
-app.run_polling(
-    post_init=post_init
-)
+# =========================================================
+# START BOT
+# =========================================================
+
+app.run_polling()
