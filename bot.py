@@ -186,24 +186,36 @@ async def delete_messages(chat_id, message_ids):
 
 
 # =========================================================
-# RETRY MESSAGE
+# CREATE RETRY BUTTON
+# =========================================================
+
+def create_retry_button(item):
+
+    payload = (
+        f"retry_"
+        f"{item['anime_id']}_"
+        f"{item['season_id']}_"
+        f"{item['quality']}"
+    )
+
+    return InlineKeyboardButton(
+        "♻️ Try Again ♻️",
+        url=(
+            f"https://t.me/"
+            f"{BOT_USERNAME}"
+            f"?start={payload}"
+        ),
+    )
+
+
+# =========================================================
+# SEND RETRY MESSAGE
 # =========================================================
 
 async def send_retry_message(item):
 
     keyboard = [[
-
-        InlineKeyboardButton(
-            "♻️ Try Again ♻️",
-
-            callback_data=(
-                f"retry|"
-                f"{item['anime_id']}|"
-                f"{item['season_id']}|"
-                f"{item['quality']}"
-            ),
-        )
-
+        create_retry_button(item)
     ]]
 
     await app.bot.send_message(
@@ -241,6 +253,10 @@ async def deletion_timer(item):
             )
 
 
+        # -------------------------------------------------
+        # DELETE ANIME FILES
+        # -------------------------------------------------
+
         await delete_messages(
 
             item["chat_id"],
@@ -248,6 +264,10 @@ async def deletion_timer(item):
             item["message_ids"],
         )
 
+
+        # -------------------------------------------------
+        # DELETE WARNING / END / FOLLOW
+        # -------------------------------------------------
 
         await delete_messages(
 
@@ -259,6 +279,10 @@ async def deletion_timer(item):
             ),
         )
 
+
+        # -------------------------------------------------
+        # REMOVE FROM PENDING
+        # -------------------------------------------------
 
         global PENDING_DELETIONS
 
@@ -273,6 +297,10 @@ async def deletion_timer(item):
             PENDING_DELETIONS
         )
 
+
+        # -------------------------------------------------
+        # LEAVE RETRY BUTTON
+        # -------------------------------------------------
 
         await send_retry_message(
             item
@@ -303,63 +331,109 @@ async def restore_timers(application):
 
 
 # =========================================================
-# START / DEEP LINK
+# PARSE DEEP LINK
+# =========================================================
+
+def parse_request(payload):
+
+    try:
+
+        parts = payload.split("_")
+
+
+        # -------------------------------------------------
+        # check_dating_sim_s1_480p
+        # -------------------------------------------------
+
+        if parts[0] == "check":
+
+            quality = parts[-1]
+            season_id = parts[-2]
+
+            anime_id = "_".join(
+                parts[1:-2]
+            )
+
+            return (
+                anime_id,
+                season_id,
+                quality,
+            )
+
+
+        # -------------------------------------------------
+        # retry_dating_sim_s1_480p
+        # -------------------------------------------------
+
+        if parts[0] == "retry":
+
+            quality = parts[-1]
+            season_id = parts[-2]
+
+            anime_id = "_".join(
+                parts[1:-2]
+            )
+
+            return (
+                anime_id,
+                season_id,
+                quality,
+            )
+
+
+    except Exception:
+
+        pass
+
+
+    return None
+
+
+# =========================================================
+# START
 # =========================================================
 
 async def start(
+
     update: Update,
+
     context: ContextTypes.DEFAULT_TYPE,
+
 ):
 
     args = context.args
 
 
     # =====================================================
-    # QUALITY DEEP LINK
+    # DEEP LINK REQUEST
     # =====================================================
 
     if args:
 
-        payload = args[0]
+        request = parse_request(
+            args[0]
+        )
 
 
-        if payload.startswith("check_"):
+        if request:
 
-            try:
-
-                parts = payload.split("_")
-
-                # check_anime_id_season_quality
-                #
-                # Example:
-                # check_dating_sim_s1_480p
-
-                anime_id = "_".join(
-                    parts[1:-2]
-                )
-
-                season_id = parts[-2]
-
-                quality = parts[-1]
+            anime_id, season_id, quality = request
 
 
-                await send_files(
-                    update,
-                    context,
-                    anime_id,
-                    season_id,
-                    quality,
-                )
+            await send_files(
 
-                return
+                update,
 
+                context,
 
-            except Exception as e:
+                anime_id,
 
-                print(
-                    "⚠️ Deep link error:",
-                    e,
-                )
+                season_id,
+
+                quality,
+            )
+
+            return
 
 
     # =====================================================
@@ -369,6 +443,7 @@ async def start(
     keyboard = [[
 
         InlineKeyboardButton(
+
             "📚 Browse Anime",
 
             url="https://t.me/ZynAnimeHub",
@@ -399,14 +474,23 @@ async def start(
 async def send_files(
 
     update,
+
     context,
+
     anime_id,
+
     season_id,
+
     quality,
+
 ):
 
     user_id = update.effective_user.id
 
+
+    # =====================================================
+    # FIND ANIME
+    # =====================================================
 
     anime = ANIME.get(
         anime_id
@@ -425,6 +509,10 @@ async def send_files(
         return
 
 
+    # =====================================================
+    # FIND SEASON
+    # =====================================================
+
     season = anime["seasons"].get(
         season_id
     )
@@ -441,6 +529,10 @@ async def send_files(
 
         return
 
+
+    # =====================================================
+    # FIND QUALITY
+    # =====================================================
 
     episodes = season[
         "episodes"
@@ -494,6 +586,10 @@ async def send_files(
         is_member = False
 
 
+    # =====================================================
+    # NOT A MEMBER
+    # =====================================================
+
     if not is_member:
 
         keyboard = [
@@ -545,7 +641,7 @@ async def send_files(
 
 
     # =====================================================
-    # SENDING
+    # SENDING MESSAGE
     # =====================================================
 
     sending = await context.bot.send_message(
@@ -557,8 +653,11 @@ async def send_files(
 
 
     try:
+
         await sending.delete()
+
     except Exception:
+
         pass
 
 
@@ -571,8 +670,11 @@ async def send_files(
 
 
     try:
+
         await loading.delete()
+
     except Exception:
+
         pass
 
 
@@ -681,7 +783,7 @@ async def send_files(
 
 
     # =====================================================
-    # SAVE TIMER
+    # SAVE DELETION TIMER
     # =====================================================
 
     item = {
@@ -707,6 +809,7 @@ async def send_files(
 
         ],
 
+        # EXACT ORIGINAL REQUEST
         "anime_id":
         anime_id,
 
@@ -730,13 +833,14 @@ async def send_files(
     )
 
 
+    # Start fresh 15-minute timer
     asyncio.create_task(
         deletion_timer(item)
     )
 
 
 # =========================================================
-# CALLBACK QUALITY / MEMBERSHIP
+# CALLBACK MEMBERSHIP TRY AGAIN
 # =========================================================
 
 async def check_membership(
@@ -764,44 +868,8 @@ async def check_membership(
         return
 
 
-    await send_files(
-
-        update,
-        context,
-        anime_id,
-        season_id,
-        quality,
-    )
-
-
-# =========================================================
-# RETRY
-# =========================================================
-
-async def retry_files(
-
-    update: Update,
-
-    context: ContextTypes.DEFAULT_TYPE,
-
-):
-
-    query = update.callback_query
-
-    await query.answer()
-
-
-    try:
-
-        _,
-        anime_id,
-        season_id,
-        quality = query.data.split("|")
-
-    except Exception:
-
-        return
-
+    # Delete only the membership
+    # Try Again message.
 
     try:
 
@@ -815,28 +883,33 @@ async def retry_files(
     await send_files(
 
         update,
+
         context,
+
         anime_id,
+
         season_id,
+
         quality,
     )
 
 
 # =========================================================
-# CREATE QUALITY BUTTON
+# QUALITY BUTTON
 # =========================================================
 
 def quality_button(
 
     anime_id,
+
     season_id,
+
     quality,
 
 ):
 
-    # This opens the Telegram bot directly.
-
     payload = (
+
         f"check_"
         f"{anime_id}_"
         f"{season_id}_"
@@ -873,9 +946,8 @@ async def post(
     ]
 
 
-    # =====================================================
-    # NO DATING SIM DETAILS
-    # =====================================================
+    # No Dating Sim description/details.
+    # Only title + seasons + quality buttons.
 
     for season_id, season in anime[
         "seasons"
@@ -901,7 +973,6 @@ async def post(
                     season_id,
 
                     quality,
-
                 )
 
             ])
@@ -966,10 +1037,11 @@ async def post_tomodachi(
 
 
     # =====================================================
-    # TOMODACHI DETAILS
+    # DETAILS
     # =====================================================
 
     details = (
+
         "🎬 Tomodachi Game\n\n"
 
         "‣ Genres : Drama, Mystery, Psychological\n"
@@ -1027,7 +1099,6 @@ async def post_tomodachi(
                     season_id,
 
                     quality,
-
                 )
 
             ])
@@ -1127,17 +1198,6 @@ app.add_handler(
     CommandHandler(
         "post_tomodachi",
         post_tomodachi,
-    )
-)
-
-
-app.add_handler(
-
-    CallbackQueryHandler(
-
-        retry_files,
-
-        pattern=r"^retry\|",
     )
 )
 
