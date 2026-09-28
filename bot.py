@@ -8,6 +8,7 @@ from telegram import (
     InlineKeyboardButton,
     InlineKeyboardMarkup
 )
+
 from telegram.ext import (
     Application,
     CommandHandler,
@@ -42,12 +43,14 @@ ANIME = {
 
     "dating_sim": {
 
-        "title": "Trapped in a Dating Sim: The World of Otome Games Is Tough for Mobs",
+        "title":
+            "Trapped in a Dating Sim: The World of Otome Games Is Tough for Mobs",
 
         "seasons": {
 
             "1": {
                 "episodes": {
+
                     "480p": {
                         1: 3,
                         2: 4,
@@ -62,13 +65,16 @@ ANIME = {
                         11: 13,
                         12: 19
                     },
+
                     "720p": {},
+
                     "1080p": {}
                 }
             },
 
             "2": {
                 "episodes": {
+
                     "480p": {
                         1: 14,
                         2: 15,
@@ -81,7 +87,9 @@ ANIME = {
                         9: 23,
                         10: 24
                     },
+
                     "720p": {},
+
                     "1080p": {}
                 }
             }
@@ -94,10 +102,12 @@ ANIME = {
         "title": "Tomodachi Game",
 
         "description":
-            "High school student Yuuichi Katagiri values friendship above all else. "
-            "But after the money for a school trip is stolen, Yuuichi and his four friends "
-            "are dragged into a mysterious debt repayment game. To escape, they must take "
-            "part in psychological games that test their trust, friendship and true nature.",
+            "High school student Yuuichi Katagiri values friendship "
+            "above all else. But after the money for a school trip is "
+            "stolen, Yuuichi and his four friends are dragged into a "
+            "mysterious debt repayment game. To escape, they must take "
+            "part in psychological games that test their trust, "
+            "friendship and true nature.",
 
         "genres": "Drama, Mystery, Psychological",
         "type": "TV",
@@ -112,6 +122,7 @@ ANIME = {
 
             "1": {
                 "episodes": {
+
                     "480p": {
                         1: 25,
                         2: 26,
@@ -126,7 +137,9 @@ ANIME = {
                         11: 36,
                         12: 37
                     },
+
                     "720p": {},
+
                     "1080p": {}
                 }
             }
@@ -142,10 +155,12 @@ ANIME = {
 def load_pending():
 
     try:
+
         with open(PENDING_FILE, "r") as f:
             return json.load(f)
 
     except Exception:
+
         return []
 
 
@@ -159,17 +174,23 @@ def save_pending(data):
 # DELETE MESSAGES
 # =========================
 
-async def delete_messages(context, chat_id, message_ids):
+async def delete_messages(
+    context,
+    chat_id,
+    message_ids
+):
 
     for message_id in message_ids:
 
         try:
+
             await context.bot.delete_message(
                 chat_id=chat_id,
                 message_id=message_id
             )
 
         except Exception:
+
             pass
 
 
@@ -199,53 +220,58 @@ async def deletion_timer(
     )
 
     # Delete warning
-    if warning_id:
+    try:
 
-        try:
-            await context.bot.delete_message(
-                chat_id=user_id,
-                message_id=warning_id
-            )
-        except Exception:
-            pass
+        await context.bot.delete_message(
+            chat_id=user_id,
+            message_id=warning_id
+        )
+
+    except Exception:
+
+        pass
 
     # Delete END message
-    if end_id:
+    try:
 
-        try:
-            await context.bot.delete_message(
-                chat_id=user_id,
-                message_id=end_id
-            )
-        except Exception:
-            pass
+        await context.bot.delete_message(
+            chat_id=user_id,
+            message_id=end_id
+        )
+
+    except Exception:
+
+        pass
 
     # Delete follow message
-    if follow_id:
+    try:
 
-        try:
-            await context.bot.delete_message(
-                chat_id=user_id,
-                message_id=follow_id
-            )
-        except Exception:
-            pass
+        await context.bot.delete_message(
+            chat_id=user_id,
+            message_id=follow_id
+        )
 
-    # Remove from pending
+    except Exception:
+
+        pass
+
+    # Remove this timer from pending
     pending = load_pending()
 
     pending = [
-        x for x in pending
+        item
+        for item in pending
         if not (
-            x.get("user_id") == user_id
-            and x.get("message_ids") == message_ids
+            item.get("user_id") == user_id
+            and item.get("message_ids") == message_ids
         )
     ]
 
     save_pending(pending)
 
-    # Final retry message
+    # Retry button
     keyboard = [
+
         [
             InlineKeyboardButton(
                 "♻️ Try Again ♻️",
@@ -257,6 +283,7 @@ async def deletion_timer(
                 )
             )
         ]
+
     ]
 
     await context.bot.send_message(
@@ -273,7 +300,7 @@ async def deletion_timer(
 # RESTORE TIMERS
 # =========================
 
-async def restore_timers(app):
+async def restore_timers(application):
 
     pending = load_pending()
 
@@ -295,20 +322,106 @@ async def restore_timers(app):
 
             user_id = item["user_id"]
 
-            await delete_messages(
-                app,
-                user_id,
-                item["message_ids"]
+            # Delete episode files
+            for message_id in item["message_ids"]:
+
+                try:
+
+                    await application.bot.delete_message(
+                        chat_id=user_id,
+                        message_id=message_id
+                    )
+
+                except Exception:
+
+                    pass
+
+            # Delete warning
+            try:
+
+                await application.bot.delete_message(
+                    chat_id=user_id,
+                    message_id=item["warning_id"]
+                )
+
+            except Exception:
+
+                pass
+
+            # Delete END
+            try:
+
+                await application.bot.delete_message(
+                    chat_id=user_id,
+                    message_id=item["end_id"]
+                )
+
+            except Exception:
+
+                pass
+
+            # Delete follow message
+            try:
+
+                await application.bot.delete_message(
+                    chat_id=user_id,
+                    message_id=item["follow_id"]
+                )
+
+            except Exception:
+
+                pass
+
+            # Remove from pending
+            current = load_pending()
+
+            current = [
+                x
+                for x in current
+                if x != item
+            ]
+
+            save_pending(current)
+
+            # Send retry button
+            keyboard = [
+
+                [
+                    InlineKeyboardButton(
+                        "♻️ Try Again ♻️",
+                        callback_data=(
+                            f"file_retry|"
+                            f"{item['anime_id']}|"
+                            f"{item['season_id']}|"
+                            f"{item['quality']}"
+                        )
+                    )
+                ]
+
+            ]
+
+            await application.bot.send_message(
+                chat_id=user_id,
+                text=(
+                    "Files deleted successfully ✅\n"
+                    "Can request files again"
+                ),
+                reply_markup=InlineKeyboardMarkup(keyboard)
             )
 
-        asyncio.create_task(restored_timer())
+        asyncio.create_task(
+            restored_timer()
+        )
 
 
 # =========================
-# CHECK MEMBERSHIP
+# MEMBERSHIP CHECK
 # =========================
 
-async def is_member(context, user_id):
+async def is_member(
+    context,
+    user_id
+):
 
     try:
 
@@ -329,7 +442,7 @@ async def is_member(context, user_id):
 
 
 # =========================
-# SEND FILES
+# REQUEST FILES
 # =========================
 
 async def request_files(
@@ -343,16 +456,24 @@ async def request_files(
     anime = ANIME.get(anime_id)
 
     if not anime:
+
         return
 
     season = anime["seasons"].get(season_id)
 
     if not season:
+
         return
 
-    episodes = season["episodes"].get(quality, {})
+    episodes = season["episodes"].get(
+        quality,
+        {}
+    )
 
-    # Quality not available
+    # =========================
+    # QUALITY NOT AVAILABLE
+    # =========================
+
     if not episodes:
 
         await context.bot.send_message(
@@ -411,7 +532,7 @@ async def request_files(
         return
 
     # =========================
-    # SEND FILES
+    # SENDING MESSAGE
     # =========================
 
     sending = await context.bot.send_message(
@@ -420,11 +541,14 @@ async def request_files(
     )
 
     try:
+
         await context.bot.delete_message(
             chat_id=user_id,
             message_id=sending.message_id
         )
+
     except Exception:
+
         pass
 
     dots = await context.bot.send_message(
@@ -433,16 +557,22 @@ async def request_files(
     )
 
     try:
+
         await context.bot.delete_message(
             chat_id=user_id,
             message_id=dots.message_id
         )
+
     except Exception:
+
         pass
+
+    # =========================
+    # SEND EPISODES
+    # =========================
 
     sent_messages = []
 
-    # Send episodes in order
     for episode, storage_message_id in sorted(
         episodes.items()
     ):
@@ -462,11 +592,13 @@ async def request_files(
         except Exception as error:
 
             print(
-                f"Failed to send episode {episode}:",
-                error
+                f"Failed to send episode {episode}: {error}"
             )
 
-    # Nothing was sent
+    # =========================
+    # NOTHING SENT
+    # =========================
+
     if not sent_messages:
 
         await context.bot.send_message(
@@ -499,7 +631,7 @@ async def request_files(
     )
 
     # =========================
-    # FOLLOW MESSAGE
+    # FOLLOW CHANNELS
     # =========================
 
     keyboard = [
@@ -556,8 +688,9 @@ async def request_files(
 
     save_pending(pending)
 
-    # Start timer
+    # Start deletion timer
     asyncio.create_task(
+
         deletion_timer(
             context,
             user_id,
@@ -569,18 +702,25 @@ async def request_files(
             season_id,
             quality
         )
+
     )
 
 
 # =========================
-# START
+# START COMMAND
 # =========================
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def start(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE
+):
 
     user_id = update.effective_user.id
 
-    # Deep-link request
+    # =========================
+    # DEEP LINK REQUEST
+    # =========================
+
     if context.args:
 
         payload = context.args[0]
@@ -592,6 +732,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if len(parts) >= 4:
 
                 quality = parts[-1]
+
                 season_id = parts[-2]
 
                 anime_id = "_".join(
@@ -608,7 +749,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
                 return
 
-    # Normal start
+    # =========================
+    # NORMAL START
+    # =========================
+
     keyboard = [
 
         [
@@ -633,7 +777,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 # =========================
-# MEMBERSHIP RETRY
+# MEMBERSHIP TRY AGAIN
 # =========================
 
 async def membership_retry(
@@ -647,10 +791,11 @@ async def membership_retry(
 
     try:
 
-        _,
-        anime_id,
-        season_id,
-        quality = query.data.split("|")
+        parts = query.data.split("|")
+
+        anime_id = parts[1]
+        season_id = parts[2]
+        quality = parts[3]
 
     except Exception:
 
@@ -658,7 +803,7 @@ async def membership_retry(
 
     user_id = query.from_user.id
 
-    # Check again
+    # Check membership again
     member = await is_member(
         context,
         user_id
@@ -673,7 +818,7 @@ async def membership_retry(
 
         return
 
-    # Delete ONLY the membership message
+    # Delete ONLY the DM membership message
     try:
 
         await query.message.delete()
@@ -682,7 +827,7 @@ async def membership_retry(
 
         pass
 
-    # Automatically send the exact same request
+    # Automatically send the same files
     await request_files(
         context,
         user_id,
@@ -707,10 +852,11 @@ async def file_retry(
 
     try:
 
-        _,
-        anime_id,
-        season_id,
-        quality = query.data.split("|")
+        parts = query.data.split("|")
+
+        anime_id = parts[1]
+        season_id = parts[2]
+        quality = parts[3]
 
     except Exception:
 
@@ -727,7 +873,7 @@ async def file_retry(
 
         pass
 
-    # Request exact same files again
+    # Request the exact same files again
     await request_files(
         context,
         user_id,
@@ -741,30 +887,35 @@ async def file_retry(
 # POST DATING SIM
 # =========================
 
-async def post(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def post(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE
+):
 
     anime = ANIME["dating_sim"]
 
-    text = (
-        f"🎬 {anime['title']}\n\n"
-        f"Season 1 — 12 Episodes\n"
-        f"Season 2 — 10 Episodes"
-    )
-
     await context.bot.send_message(
         chat_id=CHANNEL,
-        text=text
+        text=(
+            f"🎬 {anime['title']}\n\n"
+            "Season 1 — 12 Episodes\n"
+            "Season 2 — 10 Episodes"
+        )
     )
 
-    # Season 1
+    # =========================
+    # SEASON 1
+    # =========================
+
     buttons_s1 = [
 
         [
+
             InlineKeyboardButton(
                 "480p",
                 url=(
                     f"https://t.me/{BOT_USERNAME}"
-                    f"?start=request_dating_sim_1_480p"
+                    "?start=request_dating_sim_1_480p"
                 )
             ),
 
@@ -772,7 +923,7 @@ async def post(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "720p",
                 url=(
                     f"https://t.me/{BOT_USERNAME}"
-                    f"?start=request_dating_sim_1_720p"
+                    "?start=request_dating_sim_1_720p"
                 )
             ),
 
@@ -780,9 +931,10 @@ async def post(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "1080p",
                 url=(
                     f"https://t.me/{BOT_USERNAME}"
-                    f"?start=request_dating_sim_1_1080p"
+                    "?start=request_dating_sim_1_1080p"
                 )
             )
+
         ]
 
     ]
@@ -790,18 +942,24 @@ async def post(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await context.bot.send_message(
         chat_id=CHANNEL,
         text="Season 1",
-        reply_markup=InlineKeyboardMarkup(buttons_s1)
+        reply_markup=InlineKeyboardMarkup(
+            buttons_s1
+        )
     )
 
-    # Season 2
+    # =========================
+    # SEASON 2
+    # =========================
+
     buttons_s2 = [
 
         [
+
             InlineKeyboardButton(
                 "480p",
                 url=(
                     f"https://t.me/{BOT_USERNAME}"
-                    f"?start=request_dating_sim_2_480p"
+                    "?start=request_dating_sim_2_480p"
                 )
             ),
 
@@ -809,7 +967,7 @@ async def post(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "720p",
                 url=(
                     f"https://t.me/{BOT_USERNAME}"
-                    f"?start=request_dating_sim_2_720p"
+                    "?start=request_dating_sim_2_720p"
                 )
             ),
 
@@ -817,9 +975,10 @@ async def post(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "1080p",
                 url=(
                     f"https://t.me/{BOT_USERNAME}"
-                    f"?start=request_dating_sim_2_1080p"
+                    "?start=request_dating_sim_2_1080p"
                 )
             )
+
         ]
 
     ]
@@ -827,7 +986,9 @@ async def post(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await context.bot.send_message(
         chat_id=CHANNEL,
         text="Season 2",
-        reply_markup=InlineKeyboardMarkup(buttons_s2)
+        reply_markup=InlineKeyboardMarkup(
+            buttons_s2
+        )
     )
 
 
@@ -870,11 +1031,12 @@ async def post_tomodachi(
     buttons = [
 
         [
+
             InlineKeyboardButton(
                 "480p",
                 url=(
                     f"https://t.me/{BOT_USERNAME}"
-                    f"?start=request_tomodachi_game_1_480p"
+                    "?start=request_tomodachi_game_1_480p"
                 )
             ),
 
@@ -882,7 +1044,7 @@ async def post_tomodachi(
                 "720p",
                 url=(
                     f"https://t.me/{BOT_USERNAME}"
-                    f"?start=request_tomodachi_game_1_720p"
+                    "?start=request_tomodachi_game_1_720p"
                 )
             ),
 
@@ -890,9 +1052,10 @@ async def post_tomodachi(
                 "1080p",
                 url=(
                     f"https://t.me/{BOT_USERNAME}"
-                    f"?start=request_tomodachi_game_1_1080p"
+                    "?start=request_tomodachi_game_1_1080p"
                 )
             )
+
         ]
 
     ]
@@ -900,7 +1063,9 @@ async def post_tomodachi(
     await context.bot.send_message(
         chat_id=CHANNEL,
         text="Season 1",
-        reply_markup=InlineKeyboardMarkup(buttons)
+        reply_markup=InlineKeyboardMarkup(
+            buttons
+        )
     )
 
 
@@ -908,16 +1073,29 @@ async def post_tomodachi(
 # APPLICATION
 # =========================
 
-async def post_init(application):
+async def post_init(
+    application
+):
 
-    await restore_timers(application)
+    await restore_timers(
+        application
+    )
 
 
 application = (
     Application.builder()
     .token(TOKEN)
-    .base_url(LOCAL_API)
-    .post_init(post_init)
+
+    # IMPORTANT:
+    # Local Telegram Bot API requires /bot here.
+    .base_url(
+        f"{LOCAL_API}/bot"
+    )
+
+    .post_init(
+        post_init
+    )
+
     .build()
 )
 
@@ -963,9 +1141,11 @@ application.add_handler(
 
 
 # =========================
-# RUN
+# START BOT
 # =========================
 
-print("🤖 Zyn Anime Bot starting...")
+print(
+    "🤖 Zyn Anime Bot starting..."
+)
 
 application.run_polling()
