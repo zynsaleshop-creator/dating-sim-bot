@@ -3,13 +3,22 @@ import asyncio
 import json
 import time
 
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import (
+    Update,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup
+)
 from telegram.ext import (
     Application,
     CommandHandler,
     CallbackQueryHandler,
-    ContextTypes,
+    ContextTypes
 )
+
+
+# =========================
+# SETTINGS
+# =========================
 
 TOKEN = os.environ["BOT_TOKEN"]
 LOCAL_API = os.environ["LOCAL_BOT_API"]
@@ -25,26 +34,20 @@ DELETE_AFTER = 15 * 60
 PENDING_FILE = "pending_deletions.json"
 
 
-# =========================================================
+# =========================
 # ANIME DATA
-# =========================================================
+# =========================
 
 ANIME = {
 
     "dating_sim": {
 
-        "title":
-        "Trapped in a Dating Sim: The World of Otome Games Is Tough for Mobs",
+        "title": "Trapped in a Dating Sim: The World of Otome Games Is Tough for Mobs",
 
         "seasons": {
 
-            "s1": {
-
-                "name":
-                "Season 1",
-
+            "1": {
                 "episodes": {
-
                     "480p": {
                         1: 3,
                         2: 4,
@@ -57,22 +60,15 @@ ANIME = {
                         9: 11,
                         10: 12,
                         11: 13,
-                        12: 19,
+                        12: 19
                     },
-
                     "720p": {},
-
-                    "1080p": {},
-                },
+                    "1080p": {}
+                }
             },
 
-            "s2": {
-
-                "name":
-                "Season 2",
-
+            "2": {
                 "episodes": {
-
                     "480p": {
                         1: 14,
                         2: 15,
@@ -83,32 +79,39 @@ ANIME = {
                         7: 21,
                         8: 22,
                         9: 23,
-                        10: 24,
+                        10: 24
                     },
-
                     "720p": {},
-
-                    "1080p": {},
-                },
-            },
-        },
+                    "1080p": {}
+                }
+            }
+        }
     },
 
 
     "tomodachi_game": {
 
-        "title":
-        "Tomodachi Game",
+        "title": "Tomodachi Game",
+
+        "description":
+            "High school student Yuuichi Katagiri values friendship above all else. "
+            "But after the money for a school trip is stolen, Yuuichi and his four friends "
+            "are dragged into a mysterious debt repayment game. To escape, they must take "
+            "part in psychological games that test their trust, friendship and true nature.",
+
+        "genres": "Drama, Mystery, Psychological",
+        "type": "TV",
+        "rating": "77",
+        "status": "FINISHED",
+        "first_aired": "2022-4-6",
+        "last_aired": "2022-6-22",
+        "runtime": "22 minutes",
+        "episodes_count": 12,
 
         "seasons": {
 
-            "s1": {
-
-                "name":
-                "Season 1",
-
+            "1": {
                 "episodes": {
-
                     "480p": {
                         1: 25,
                         2: 26,
@@ -121,740 +124,526 @@ ANIME = {
                         9: 34,
                         10: 35,
                         11: 36,
-                        12: 37,
+                        12: 37
                     },
-
                     "720p": {},
-
-                    "1080p": {},
-                },
-            },
-        },
-    },
+                    "1080p": {}
+                }
+            }
+        }
+    }
 }
 
 
-# =========================================================
+# =========================
 # PENDING DELETIONS
-# =========================================================
+# =========================
 
 def load_pending():
 
-    if not os.path.exists(PENDING_FILE):
-        return []
-
     try:
-
         with open(PENDING_FILE, "r") as f:
             return json.load(f)
 
     except Exception:
-
         return []
 
 
 def save_pending(data):
 
-    temp = PENDING_FILE + ".tmp"
-
-    with open(temp, "w") as f:
+    with open(PENDING_FILE, "w") as f:
         json.dump(data, f)
 
-    os.replace(temp, PENDING_FILE)
 
-
-PENDING_DELETIONS = load_pending()
-
-
-# =========================================================
+# =========================
 # DELETE MESSAGES
-# =========================================================
+# =========================
 
-async def delete_messages(chat_id, message_ids):
+async def delete_messages(context, chat_id, message_ids):
 
     for message_id in message_ids:
 
         try:
-
-            await app.bot.delete_message(
+            await context.bot.delete_message(
                 chat_id=chat_id,
-                message_id=message_id,
+                message_id=message_id
             )
 
         except Exception:
             pass
 
 
-# =========================================================
-# CREATE RETRY BUTTON
-# =========================================================
+# =========================
+# DELETION TIMER
+# =========================
 
-def create_retry_button(item):
+async def deletion_timer(
+    context,
+    user_id,
+    message_ids,
+    warning_id,
+    end_id,
+    follow_id,
+    anime_id,
+    season_id,
+    quality
+):
 
-    payload = (
-        f"retry_"
-        f"{item['anime_id']}_"
-        f"{item['season_id']}_"
-        f"{item['quality']}"
+    await asyncio.sleep(DELETE_AFTER)
+
+    # Delete episode files
+    await delete_messages(
+        context,
+        user_id,
+        message_ids
     )
 
-    return InlineKeyboardButton(
-        "♻️ Try Again ♻️",
-        url=(
-            f"https://t.me/"
-            f"{BOT_USERNAME}"
-            f"?start={payload}"
-        ),
-    )
+    # Delete warning
+    if warning_id:
 
+        try:
+            await context.bot.delete_message(
+                chat_id=user_id,
+                message_id=warning_id
+            )
+        except Exception:
+            pass
 
-# =========================================================
-# SEND RETRY MESSAGE
-# =========================================================
+    # Delete END message
+    if end_id:
 
-async def send_retry_message(item):
+        try:
+            await context.bot.delete_message(
+                chat_id=user_id,
+                message_id=end_id
+            )
+        except Exception:
+            pass
 
-    keyboard = [[
-        create_retry_button(item)
-    ]]
+    # Delete follow message
+    if follow_id:
 
-    await app.bot.send_message(
+        try:
+            await context.bot.delete_message(
+                chat_id=user_id,
+                message_id=follow_id
+            )
+        except Exception:
+            pass
 
-        chat_id=item["chat_id"],
+    # Remove from pending
+    pending = load_pending()
 
+    pending = [
+        x for x in pending
+        if not (
+            x.get("user_id") == user_id
+            and x.get("message_ids") == message_ids
+        )
+    ]
+
+    save_pending(pending)
+
+    # Final retry message
+    keyboard = [
+        [
+            InlineKeyboardButton(
+                "♻️ Try Again ♻️",
+                callback_data=(
+                    f"file_retry|"
+                    f"{anime_id}|"
+                    f"{season_id}|"
+                    f"{quality}"
+                )
+            )
+        ]
+    ]
+
+    await context.bot.send_message(
+        chat_id=user_id,
         text=(
             "Files deleted successfully ✅\n"
             "Can request files again"
         ),
-
-        reply_markup=InlineKeyboardMarkup(
-            keyboard
-        ),
+        reply_markup=InlineKeyboardMarkup(keyboard)
     )
 
 
-# =========================================================
-# DELETION TIMER
-# =========================================================
-
-async def deletion_timer(item):
-
-    try:
-
-        wait_time = (
-            item["delete_at"] -
-            time.time()
-        )
-
-        if wait_time > 0:
-
-            await asyncio.sleep(
-                wait_time
-            )
-
-
-        # -------------------------------------------------
-        # DELETE ANIME FILES
-        # -------------------------------------------------
-
-        await delete_messages(
-
-            item["chat_id"],
-
-            item["message_ids"],
-        )
-
-
-        # -------------------------------------------------
-        # DELETE WARNING / END / FOLLOW
-        # -------------------------------------------------
-
-        await delete_messages(
-
-            item["chat_id"],
-
-            item.get(
-                "extra_message_ids",
-                [],
-            ),
-        )
-
-
-        # -------------------------------------------------
-        # REMOVE FROM PENDING
-        # -------------------------------------------------
-
-        global PENDING_DELETIONS
-
-        PENDING_DELETIONS = [
-
-            x for x in PENDING_DELETIONS
-
-            if x["id"] != item["id"]
-        ]
-
-        save_pending(
-            PENDING_DELETIONS
-        )
-
-
-        # -------------------------------------------------
-        # LEAVE RETRY BUTTON
-        # -------------------------------------------------
-
-        await send_retry_message(
-            item
-        )
-
-
-    except Exception as e:
-
-        print(
-            "⚠️ Deletion timer error:",
-            e,
-        )
-
-
-# =========================================================
+# =========================
 # RESTORE TIMERS
-# =========================================================
+# =========================
 
-async def restore_timers(application):
+async def restore_timers(app):
 
-    for item in list(
-        PENDING_DELETIONS
-    ):
+    pending = load_pending()
 
-        asyncio.create_task(
-            deletion_timer(item)
-        )
+    now = time.time()
 
+    for item in pending:
 
-# =========================================================
-# PARSE DEEP LINK
-# =========================================================
+        remaining = item["delete_at"] - now
 
-def parse_request(payload):
+        if remaining <= 0:
+            remaining = 1
 
-    try:
+        async def restored_timer(
+            item=item,
+            remaining=remaining
+        ):
 
-        parts = payload.split("_")
+            await asyncio.sleep(remaining)
 
+            user_id = item["user_id"]
 
-        # -------------------------------------------------
-        # check_dating_sim_s1_480p
-        # -------------------------------------------------
-
-        if parts[0] == "check":
-
-            quality = parts[-1]
-            season_id = parts[-2]
-
-            anime_id = "_".join(
-                parts[1:-2]
+            await delete_messages(
+                app,
+                user_id,
+                item["message_ids"]
             )
 
-            return (
-                anime_id,
-                season_id,
-                quality,
-            )
+        asyncio.create_task(restored_timer())
 
 
-        # -------------------------------------------------
-        # retry_dating_sim_s1_480p
-        # -------------------------------------------------
+# =========================
+# CHECK MEMBERSHIP
+# =========================
 
-        if parts[0] == "retry":
-
-            quality = parts[-1]
-            season_id = parts[-2]
-
-            anime_id = "_".join(
-                parts[1:-2]
-            )
-
-            return (
-                anime_id,
-                season_id,
-                quality,
-            )
-
-
-    except Exception:
-
-        pass
-
-
-    return None
-
-
-# =========================================================
-# START
-# =========================================================
-
-async def start(
-
-    update: Update,
-
-    context: ContextTypes.DEFAULT_TYPE,
-
-):
-
-    args = context.args
-
-
-    # =====================================================
-    # DEEP LINK REQUEST
-    # =====================================================
-
-    if args:
-
-        request = parse_request(
-            args[0]
-        )
-
-
-        if request:
-
-            anime_id, season_id, quality = request
-
-
-            await send_files(
-
-                update,
-
-                context,
-
-                anime_id,
-
-                season_id,
-
-                quality,
-            )
-
-            return
-
-
-    # =====================================================
-    # NORMAL START
-    # =====================================================
-
-    keyboard = [[
-
-        InlineKeyboardButton(
-
-            "📚 Browse Anime",
-
-            url="https://t.me/ZynAnimeHub",
-        )
-
-    ]]
-
-
-    await update.message.reply_text(
-
-        "🎬 Welcome to Zyn Anime Bot!\n\n"
-
-        "📚 Find your anime in our main channel:\n"
-        "👉 Zyn Anime Hub\n\n"
-
-        "Select an anime there and choose your preferred quality.",
-
-        reply_markup=InlineKeyboardMarkup(
-            keyboard
-        ),
-    )
-
-
-# =========================================================
-# SEND FILES
-# =========================================================
-
-async def send_files(
-
-    update,
-
-    context,
-
-    anime_id,
-
-    season_id,
-
-    quality,
-
-):
-
-    user_id = update.effective_user.id
-
-
-    # =====================================================
-    # FIND ANIME
-    # =====================================================
-
-    anime = ANIME.get(
-        anime_id
-    )
-
-
-    if not anime:
-
-        await context.bot.send_message(
-
-            chat_id=user_id,
-
-            text="❌ Anime not found.",
-        )
-
-        return
-
-
-    # =====================================================
-    # FIND SEASON
-    # =====================================================
-
-    season = anime["seasons"].get(
-        season_id
-    )
-
-
-    if not season:
-
-        await context.bot.send_message(
-
-            chat_id=user_id,
-
-            text="❌ Season not found.",
-        )
-
-        return
-
-
-    # =====================================================
-    # FIND QUALITY
-    # =====================================================
-
-    episodes = season[
-        "episodes"
-    ].get(
-        quality,
-        {}
-    )
-
-
-    # =====================================================
-    # QUALITY NOT AVAILABLE
-    # =====================================================
-
-    if not episodes:
-
-        await context.bot.send_message(
-
-            chat_id=user_id,
-
-            text=(
-                f"❌ {quality} is not available yet.\n\n"
-                "Please try another quality."
-            ),
-        )
-
-        return
-
-
-    # =====================================================
-    # MEMBERSHIP CHECK
-    # =====================================================
+async def is_member(context, user_id):
 
     try:
 
         member = await context.bot.get_chat_member(
-
             chat_id=REQUIRED_CHANNEL,
-
-            user_id=user_id,
+            user_id=user_id
         )
 
-        is_member = member.status in [
-
+        return member.status in [
             "member",
             "administrator",
-            "creator",
+            "creator"
         ]
 
     except Exception:
 
-        is_member = False
+        return False
 
 
-    # =====================================================
-    # NOT A MEMBER
-    # =====================================================
+# =========================
+# SEND FILES
+# =========================
 
-    if not is_member:
+async def request_files(
+    context,
+    user_id,
+    anime_id,
+    season_id,
+    quality
+):
 
-        keyboard = [
+    anime = ANIME.get(anime_id)
 
-            [
+    if not anime:
+        return
 
-                InlineKeyboardButton(
+    season = anime["seasons"].get(season_id)
 
-                    "📢 Join Channel",
+    if not season:
+        return
 
-                    url="https://t.me/zynanime",
-                )
+    episodes = season["episodes"].get(quality, {})
 
-            ],
-
-            [
-
-                InlineKeyboardButton(
-
-                    "♻️ Try Again",
-
-                    callback_data=(
-                        f"check|"
-                        f"{anime_id}|"
-                        f"{season_id}|"
-                        f"{quality}"
-                    ),
-                )
-
-            ],
-        ]
-
+    # Quality not available
+    if not episodes:
 
         await context.bot.send_message(
-
             chat_id=user_id,
-
             text=(
-                "🔒 You must join our channel "
-                "before requesting anime files."
-            ),
-
-            reply_markup=InlineKeyboardMarkup(
-                keyboard
-            ),
+                f"❌ {quality} is not available yet.\n\n"
+                "Please try another quality."
+            )
         )
 
         return
 
+    # =========================
+    # MEMBERSHIP CHECK
+    # =========================
 
-    # =====================================================
-    # SENDING MESSAGE
-    # =====================================================
+    member = await is_member(
+        context,
+        user_id
+    )
+
+    if not member:
+
+        keyboard = [
+
+            [
+                InlineKeyboardButton(
+                    "📢 Join Channel",
+                    url="https://t.me/zynanime"
+                )
+            ],
+
+            [
+                InlineKeyboardButton(
+                    "♻️ Try Again",
+                    callback_data=(
+                        f"membership_retry|"
+                        f"{anime_id}|"
+                        f"{season_id}|"
+                        f"{quality}"
+                    )
+                )
+            ]
+
+        ]
+
+        await context.bot.send_message(
+            chat_id=user_id,
+            text=(
+                "🔒 You must join our channel "
+                "before requesting anime files."
+            ),
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+
+        return
+
+    # =========================
+    # SEND FILES
+    # =========================
 
     sending = await context.bot.send_message(
-
         chat_id=user_id,
-
-        text="📤 Sending files...",
+        text="📤 Sending files..."
     )
 
-
     try:
-
-        await sending.delete()
-
+        await context.bot.delete_message(
+            chat_id=user_id,
+            message_id=sending.message_id
+        )
     except Exception:
-
         pass
 
-
-    loading = await context.bot.send_message(
-
+    dots = await context.bot.send_message(
         chat_id=user_id,
-
-        text=".......",
+        text="......."
     )
 
-
     try:
-
-        await loading.delete()
-
+        await context.bot.delete_message(
+            chat_id=user_id,
+            message_id=dots.message_id
+        )
     except Exception:
-
         pass
 
+    sent_messages = []
 
-    # =====================================================
-    # SEND EPISODES
-    # =====================================================
-
-    sent_ids = []
-
-
-    for episode, storage_message_id in episodes.items():
+    # Send episodes in order
+    for episode, storage_message_id in sorted(
+        episodes.items()
+    ):
 
         try:
 
-            sent_message = (
-                await context.bot.copy_message(
-
-                    chat_id=user_id,
-
-                    from_chat_id=STORAGE_CHAT_ID,
-
-                    message_id=storage_message_id,
-                )
+            copied = await context.bot.copy_message(
+                chat_id=user_id,
+                from_chat_id=STORAGE_CHAT_ID,
+                message_id=storage_message_id
             )
 
-
-            sent_ids.append(
-                sent_message.message_id
+            sent_messages.append(
+                copied.message_id
             )
 
-
-        except Exception as e:
+        except Exception as error:
 
             print(
-                f"⚠️ Error sending episode "
-                f"{episode}: {e}"
+                f"Failed to send episode {episode}:",
+                error
             )
 
+    # Nothing was sent
+    if not sent_messages:
 
-    # =====================================================
+        await context.bot.send_message(
+            chat_id=user_id,
+            text="❌ Unable to send the files right now."
+        )
+
+        return
+
+    # =========================
     # WARNING
-    # =====================================================
+    # =========================
 
     warning = await context.bot.send_message(
-
         chat_id=user_id,
-
         text=(
             "⚠️ Files will be deleted in 15 minutes.\n\n"
             "Please save/download them now or send them "
             "to another chat if you want to keep them."
-        ),
+        )
     )
 
-
-    # =====================================================
+    # =========================
     # END OF SEASON
-    # =====================================================
+    # =========================
 
-    end = await context.bot.send_message(
-
+    end_message = await context.bot.send_message(
         chat_id=user_id,
-
-        text=(
-            f"🎬 END OF "
-            f"{season['name'].upper()} 🏁"
-        ),
+        text=f"🎬 END OF SEASON {season_id} 🏁"
     )
 
+    # =========================
+    # FOLLOW MESSAGE
+    # =========================
 
-    # =====================================================
-    # FOLLOW CHANNELS
-    # =====================================================
+    keyboard = [
 
-    keyboard = [[
+        [
+            InlineKeyboardButton(
+                "ZynAnimeHub",
+                url="https://t.me/ZynAnimeHub"
+            ),
 
-        InlineKeyboardButton(
+            InlineKeyboardButton(
+                "ZynAnime",
+                url="https://t.me/ZynAnime"
+            )
+        ]
 
-            "ZynAnimeHub",
+    ]
 
-            url="https://t.me/ZynAnimeHub",
-        ),
-
-        InlineKeyboardButton(
-
-            "ZynAnime",
-
-            url="https://t.me/zynanime",
-        ),
-
-    ]]
-
-
-    follow_message = await context.bot.send_message(
-
+    follow = await context.bot.send_message(
         chat_id=user_id,
-
-        text=(
-            "🎬 Follow our channels for more anime:"
-        ),
-
-        reply_markup=InlineKeyboardMarkup(
-            keyboard
-        ),
+        text="🎬 Follow our channels for more anime:",
+        reply_markup=InlineKeyboardMarkup(keyboard)
     )
 
+    # =========================
+    # SAVE TIMER
+    # =========================
 
-    # =====================================================
-    # SAVE DELETION TIMER
-    # =====================================================
+    delete_at = time.time() + DELETE_AFTER
 
-    item = {
+    pending = load_pending()
 
-        "id": (
-            f"{user_id}-"
-            f"{int(time.time() * 1000)}"
-        ),
+    pending.append({
 
-        "chat_id":
-        user_id,
+        "user_id": user_id,
 
-        "message_ids":
-        sent_ids,
+        "message_ids": sent_messages,
 
-        "extra_message_ids": [
+        "warning_id": warning.message_id,
 
-            warning.message_id,
+        "end_id": end_message.message_id,
 
-            end.message_id,
+        "follow_id": follow.message_id,
 
-            follow_message.message_id,
+        "anime_id": anime_id,
 
-        ],
+        "season_id": season_id,
 
-        # EXACT ORIGINAL REQUEST
-        "anime_id":
-        anime_id,
+        "quality": quality,
 
-        "season_id":
-        season_id,
+        "delete_at": delete_at
 
-        "quality":
-        quality,
+    })
 
-        "delete_at":
-        time.time() + DELETE_AFTER,
-    }
+    save_pending(pending)
 
-
-    PENDING_DELETIONS.append(
-        item
-    )
-
-    save_pending(
-        PENDING_DELETIONS
-    )
-
-
-    # Start fresh 15-minute timer
+    # Start timer
     asyncio.create_task(
-        deletion_timer(item)
+        deletion_timer(
+            context,
+            user_id,
+            sent_messages,
+            warning.message_id,
+            end_message.message_id,
+            follow.message_id,
+            anime_id,
+            season_id,
+            quality
+        )
     )
 
 
-# =========================================================
-# CALLBACK MEMBERSHIP TRY AGAIN
-# =========================================================
+# =========================
+# START
+# =========================
 
-async def check_membership(
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
+    user_id = update.effective_user.id
+
+    # Deep-link request
+    if context.args:
+
+        payload = context.args[0]
+
+        if payload.startswith("request_"):
+
+            parts = payload.split("_")
+
+            if len(parts) >= 4:
+
+                quality = parts[-1]
+                season_id = parts[-2]
+
+                anime_id = "_".join(
+                    parts[1:-2]
+                )
+
+                await request_files(
+                    context,
+                    user_id,
+                    anime_id,
+                    season_id,
+                    quality
+                )
+
+                return
+
+    # Normal start
+    keyboard = [
+
+        [
+            InlineKeyboardButton(
+                "📚 Browse Anime",
+                url="https://t.me/ZynAnimeHub"
+            )
+        ]
+
+    ]
+
+    await update.message.reply_text(
+        (
+            "🎬 Welcome to Zyn Anime Bot!\n\n"
+            "📚 Find your anime in our main channel:\n"
+            "👉 Zyn Anime Hub\n\n"
+            "Select an anime there and choose "
+            "your preferred quality."
+        ),
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
+
+
+# =========================
+# MEMBERSHIP RETRY
+# =========================
+
+async def membership_retry(
     update: Update,
-
-    context: ContextTypes.DEFAULT_TYPE,
-
+    context: ContextTypes.DEFAULT_TYPE
 ):
 
     query = update.callback_query
 
     await query.answer()
-
 
     try:
 
@@ -867,10 +656,24 @@ async def check_membership(
 
         return
 
+    user_id = query.from_user.id
 
-    # Delete only the membership
-    # Try Again message.
+    # Check again
+    member = await is_member(
+        context,
+        user_id
+    )
 
+    if not member:
+
+        await query.answer(
+            "❌ Please join the channel first.",
+            show_alert=True
+        )
+
+        return
+
+    # Delete ONLY the membership message
     try:
 
         await query.message.delete()
@@ -879,169 +682,167 @@ async def check_membership(
 
         pass
 
-
-    await send_files(
-
-        update,
-
+    # Automatically send the exact same request
+    await request_files(
         context,
-
+        user_id,
         anime_id,
-
         season_id,
-
-        quality,
+        quality
     )
 
 
-# =========================================================
-# QUALITY BUTTON
-# =========================================================
+# =========================
+# FILE RETRY
+# =========================
 
-def quality_button(
-
-    anime_id,
-
-    season_id,
-
-    quality,
-
+async def file_retry(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE
 ):
 
-    payload = (
+    query = update.callback_query
 
-        f"check_"
-        f"{anime_id}_"
-        f"{season_id}_"
-        f"{quality}"
+    await query.answer()
+
+    try:
+
+        _,
+        anime_id,
+        season_id,
+        quality = query.data.split("|")
+
+    except Exception:
+
+        return
+
+    user_id = query.from_user.id
+
+    # Delete old retry message
+    try:
+
+        await query.message.delete()
+
+    except Exception:
+
+        pass
+
+    # Request exact same files again
+    await request_files(
+        context,
+        user_id,
+        anime_id,
+        season_id,
+        quality
     )
 
 
-    return InlineKeyboardButton(
-
-        f"📥 {quality}",
-
-        url=(
-            f"https://t.me/"
-            f"{BOT_USERNAME}"
-            f"?start={payload}"
-        ),
-    )
-
-
-# =========================================================
+# =========================
 # POST DATING SIM
-# =========================================================
+# =========================
 
-async def post(
+async def post(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
-    update: Update,
+    anime = ANIME["dating_sim"]
 
-    context: ContextTypes.DEFAULT_TYPE,
-
-):
-
-    anime = ANIME[
-        "dating_sim"
-    ]
-
-
-    # No Dating Sim description/details.
-    # Only title + seasons + quality buttons.
-
-    for season_id, season in anime[
-        "seasons"
-    ].items():
-
-        keyboard = []
-
-
-        for quality in [
-
-            "480p",
-            "720p",
-            "1080p",
-
-        ]:
-
-            keyboard.append([
-
-                quality_button(
-
-                    "dating_sim",
-
-                    season_id,
-
-                    quality,
-                )
-
-            ])
-
-
-        episodes = season[
-            "episodes"
-        ][
-            "480p"
-        ]
-
-
-        await context.bot.send_message(
-
-            chat_id=CHANNEL,
-
-            text=(
-
-                f"🎬 {anime['title']}\n\n"
-
-                f"📚 {season['name']}\n\n"
-
-                f"📺 Episodes: "
-                f"{len(episodes)}"
-            ),
-
-            reply_markup=InlineKeyboardMarkup(
-                keyboard
-            ),
-        )
-
-
-    await update.message.reply_text(
-
-        "✅ Dating Sim posted."
+    text = (
+        f"🎬 {anime['title']}\n\n"
+        f"Season 1 — 12 Episodes\n"
+        f"Season 2 — 10 Episodes"
     )
-
-
-# =========================================================
-# POST TOMODACHI GAME
-# =========================================================
-
-async def post_tomodachi(
-
-    update: Update,
-
-    context: ContextTypes.DEFAULT_TYPE,
-
-):
-
-    anime = ANIME[
-        "tomodachi_game"
-    ]
-
 
     await context.bot.send_message(
-
         chat_id=CHANNEL,
+        text=text
+    )
 
-        text="━━━━━━━━━━━━━━━━━━",
+    # Season 1
+    buttons_s1 = [
+
+        [
+            InlineKeyboardButton(
+                "480p",
+                url=(
+                    f"https://t.me/{BOT_USERNAME}"
+                    f"?start=request_dating_sim_1_480p"
+                )
+            ),
+
+            InlineKeyboardButton(
+                "720p",
+                url=(
+                    f"https://t.me/{BOT_USERNAME}"
+                    f"?start=request_dating_sim_1_720p"
+                )
+            ),
+
+            InlineKeyboardButton(
+                "1080p",
+                url=(
+                    f"https://t.me/{BOT_USERNAME}"
+                    f"?start=request_dating_sim_1_1080p"
+                )
+            )
+        ]
+
+    ]
+
+    await context.bot.send_message(
+        chat_id=CHANNEL,
+        text="Season 1",
+        reply_markup=InlineKeyboardMarkup(buttons_s1)
+    )
+
+    # Season 2
+    buttons_s2 = [
+
+        [
+            InlineKeyboardButton(
+                "480p",
+                url=(
+                    f"https://t.me/{BOT_USERNAME}"
+                    f"?start=request_dating_sim_2_480p"
+                )
+            ),
+
+            InlineKeyboardButton(
+                "720p",
+                url=(
+                    f"https://t.me/{BOT_USERNAME}"
+                    f"?start=request_dating_sim_2_720p"
+                )
+            ),
+
+            InlineKeyboardButton(
+                "1080p",
+                url=(
+                    f"https://t.me/{BOT_USERNAME}"
+                    f"?start=request_dating_sim_2_1080p"
+                )
+            )
+        ]
+
+    ]
+
+    await context.bot.send_message(
+        chat_id=CHANNEL,
+        text="Season 2",
+        reply_markup=InlineKeyboardMarkup(buttons_s2)
     )
 
 
-    # =====================================================
-    # DETAILS
-    # =====================================================
+# =========================
+# POST TOMODACHI GAME
+# =========================
 
-    details = (
+async def post_tomodachi(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE
+):
 
+    anime = ANIME["tomodachi_game"]
+
+    text = (
         "🎬 Tomodachi Game\n\n"
 
         "‣ Genres : Drama, Mystery, Psychological\n"
@@ -1053,168 +854,118 @@ async def post_tomodachi(
         "‣ Runtime : 22 minutes\n"
         "‣ No of episodes : 12\n\n"
 
-        "High school student Yuuichi Katagiri values "
-        "friendship above all else. But after the money "
-        "for a school trip is stolen, Yuuichi and his "
-        "four friends are dragged into a mysterious debt "
-        "repayment game. To escape, they must take part "
-        "in psychological games that test their trust, "
-        "friendship and true nature."
+        "High school student Yuuichi Katagiri values friendship "
+        "above all else. But after the money for a school trip "
+        "is stolen, Yuuichi and his four friends are dragged "
+        "into a mysterious debt repayment game. To escape, "
+        "they must take part in psychological games that test "
+        "their trust, friendship and true nature."
     )
-
 
     await context.bot.send_message(
-
         chat_id=CHANNEL,
-
-        text=details,
+        text=text
     )
 
+    buttons = [
 
-    # =====================================================
-    # SEASONS
-    # =====================================================
-
-    for season_id, season in anime[
-        "seasons"
-    ].items():
-
-        keyboard = []
-
-
-        for quality in [
-
-            "480p",
-            "720p",
-            "1080p",
-
-        ]:
-
-            keyboard.append([
-
-                quality_button(
-
-                    "tomodachi_game",
-
-                    season_id,
-
-                    quality,
+        [
+            InlineKeyboardButton(
+                "480p",
+                url=(
+                    f"https://t.me/{BOT_USERNAME}"
+                    f"?start=request_tomodachi_game_1_480p"
                 )
+            ),
 
-            ])
+            InlineKeyboardButton(
+                "720p",
+                url=(
+                    f"https://t.me/{BOT_USERNAME}"
+                    f"?start=request_tomodachi_game_1_720p"
+                )
+            ),
 
-
-        episodes = season[
-            "episodes"
-        ][
-            "480p"
+            InlineKeyboardButton(
+                "1080p",
+                url=(
+                    f"https://t.me/{BOT_USERNAME}"
+                    f"?start=request_tomodachi_game_1_1080p"
+                )
+            )
         ]
 
-
-        await context.bot.send_message(
-
-            chat_id=CHANNEL,
-
-            text=(
-
-                f"🎬 {season['name']}\n\n"
-
-                f"📺 Episodes: "
-                f"{len(episodes)}"
-            ),
-
-            reply_markup=InlineKeyboardMarkup(
-                keyboard
-            ),
-        )
-
+    ]
 
     await context.bot.send_message(
-
         chat_id=CHANNEL,
-
-        text="━━━━━━━━━━━━━━━━━━",
+        text="Season 1",
+        reply_markup=InlineKeyboardMarkup(buttons)
     )
 
 
-    await update.message.reply_text(
-
-        "✅ Tomodachi Game posted."
-    )
-
-
-# =========================================================
+# =========================
 # APPLICATION
-# =========================================================
+# =========================
 
-app = (
+async def post_init(application):
 
+    await restore_timers(application)
+
+
+application = (
     Application.builder()
-
     .token(TOKEN)
-
-    .base_url(
-        LOCAL_API + "/bot"
-    )
-
-    .base_file_url(
-        LOCAL_API + "/file/bot"
-    )
-
-    .local_mode(True)
-
-    .post_init(
-        restore_timers
-    )
-
+    .base_url(LOCAL_API)
+    .post_init(post_init)
     .build()
 )
 
 
-# =========================================================
+# =========================
 # HANDLERS
-# =========================================================
+# =========================
 
-app.add_handler(
-
+application.add_handler(
     CommandHandler(
         "start",
-        start,
+        start
     )
 )
 
-
-app.add_handler(
-
+application.add_handler(
     CommandHandler(
         "post",
-        post,
+        post
     )
 )
 
-
-app.add_handler(
-
+application.add_handler(
     CommandHandler(
         "post_tomodachi",
-        post_tomodachi,
+        post_tomodachi
     )
 )
 
-
-app.add_handler(
-
+application.add_handler(
     CallbackQueryHandler(
+        membership_retry,
+        pattern=r"^membership_retry\|"
+    )
+)
 
-        check_membership,
-
-        pattern=r"^check\|",
+application.add_handler(
+    CallbackQueryHandler(
+        file_retry,
+        pattern=r"^file_retry\|"
     )
 )
 
 
-# =========================================================
+# =========================
 # RUN
-# =========================================================
+# =========================
 
-app.run_polling()
+print("🤖 Zyn Anime Bot starting...")
+
+application.run_polling()
