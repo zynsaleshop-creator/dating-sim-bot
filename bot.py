@@ -29,8 +29,6 @@ STORAGE_CHAT_ID = -1003947631814
 CHANNEL = "@ZynAnimeHub"
 REQUIRED_CHANNEL = "@ZynAnime"
 
-BOT_USERNAME = "ZynAnimeBot"
-
 DELETE_AFTER = 15 * 60
 PENDING_FILE = "pending_deletions.json"
 
@@ -249,38 +247,22 @@ async def deletion_timer(
         message_ids
     )
 
-    try:
+    for message_id in [
+        warning_id,
+        end_id,
+        follow_id
+    ]:
 
-        await context.bot.delete_message(
-            chat_id=user_id,
-            message_id=warning_id
-        )
+        try:
 
-    except Exception:
+            await context.bot.delete_message(
+                chat_id=user_id,
+                message_id=message_id
+            )
 
-        pass
+        except Exception:
 
-    try:
-
-        await context.bot.delete_message(
-            chat_id=user_id,
-            message_id=end_id
-        )
-
-    except Exception:
-
-        pass
-
-    try:
-
-        await context.bot.delete_message(
-            chat_id=user_id,
-            message_id=follow_id
-        )
-
-    except Exception:
-
-        pass
+            pass
 
     pending = load_pending()
 
@@ -351,38 +333,22 @@ async def restore_timers(application):
                 item["message_ids"]
             )
 
-            try:
+            for message_id in [
+                item["warning_id"],
+                item["end_id"],
+                item["follow_id"]
+            ]:
 
-                await application.bot.delete_message(
-                    chat_id=user_id,
-                    message_id=item["warning_id"]
-                )
+                try:
 
-            except Exception:
+                    await application.bot.delete_message(
+                        chat_id=user_id,
+                        message_id=message_id
+                    )
 
-                pass
+                except Exception:
 
-            try:
-
-                await application.bot.delete_message(
-                    chat_id=user_id,
-                    message_id=item["end_id"]
-                )
-
-            except Exception:
-
-                pass
-
-            try:
-
-                await application.bot.delete_message(
-                    chat_id=user_id,
-                    message_id=item["follow_id"]
-                )
-
-            except Exception:
-
-                pass
+                    pass
 
             current = load_pending()
 
@@ -463,10 +429,6 @@ async def request_files(
         {}
     )
 
-    # =========================
-    # QUALITY UNAVAILABLE
-    # =========================
-
     if not episodes:
 
         await context.bot.send_message(
@@ -478,10 +440,6 @@ async def request_files(
         )
 
         return
-
-    # =========================
-    # MEMBERSHIP CHECK
-    # =========================
 
     member = await is_member(
         context,
@@ -526,10 +484,6 @@ async def request_files(
 
         return
 
-    # =========================
-    # SENDING
-    # =========================
-
     sending = await context.bot.send_message(
         chat_id=user_id,
         text="📤 Sending files..."
@@ -562,10 +516,6 @@ async def request_files(
 
         pass
 
-    # =========================
-    # SEND EPISODES
-    # =========================
-
     sent_messages = []
 
     for episode, storage_message_id in sorted(
@@ -591,10 +541,6 @@ async def request_files(
                 f"{episode}: {error}"
             )
 
-    # =========================
-    # NOTHING SENT
-    # =========================
-
     if not sent_messages:
 
         await context.bot.send_message(
@@ -603,10 +549,6 @@ async def request_files(
         )
 
         return
-
-    # =========================
-    # WARNING
-    # =========================
 
     warning = await context.bot.send_message(
         chat_id=user_id,
@@ -617,18 +559,10 @@ async def request_files(
         )
     )
 
-    # =========================
-    # END OF SEASON
-    # =========================
-
     end_message = await context.bot.send_message(
         chat_id=user_id,
         text=f"🎬 END OF SEASON {season_id} 🏁"
     )
-
-    # =========================
-    # FOLLOW CHANNELS
-    # =========================
 
     keyboard = [
         [
@@ -650,10 +584,6 @@ async def request_files(
             keyboard
         )
     )
-
-    # =========================
-    # SAVE TIMER
-    # =========================
 
     delete_at = time.time() + DELETE_AFTER
 
@@ -713,43 +643,89 @@ async def start(
 
     if context.args:
 
-        payload = context.args[0]
+        payload = context.args[0].lower()
+
+        print(
+            f"🔗 Start payload received: {payload}"
+        )
 
         try:
 
-            parts = payload.split("_")
+            # Dating Sim
+            if payload.startswith(
+                "dating-sim-"
+            ):
 
-            if len(parts) == 3:
+                values = payload[
+                    len("dating-sim-"):
+                ].split("-")
 
-                anime_id = parts[0]
-                season_id = parts[1]
-                quality = parts[2]
+                if len(values) == 2:
 
-                if (
-                    anime_id in ANIME
-                    and season_id in ANIME[anime_id]["seasons"]
-                    and quality in [
-                        "480p",
-                        "720p",
-                        "1080p"
-                    ]
-                ):
+                    season_id = values[0]
+                    quality = values[1]
 
-                    await request_files(
-                        context,
-                        update.effective_user.id,
-                        anime_id,
-                        season_id,
-                        quality
-                    )
+                    if (
+                        season_id in
+                        ANIME["dating_sim"]["seasons"]
+                        and quality in [
+                            "480p",
+                            "720p",
+                            "1080p"
+                        ]
+                    ):
 
-                    return
+                        await request_files(
+                            context,
+                            update.effective_user.id,
+                            "dating_sim",
+                            season_id,
+                            quality
+                        )
+
+                        return
+
+
+            # Tomodachi Game
+            if payload.startswith(
+                "tomodachi-game-"
+            ):
+
+                values = payload[
+                    len("tomodachi-game-"):
+                ].split("-")
+
+                if len(values) == 2:
+
+                    season_id = values[0]
+                    quality = values[1]
+
+                    if (
+                        season_id in
+                        ANIME["tomodachi_game"]["seasons"]
+                        and quality in [
+                            "480p",
+                            "720p",
+                            "1080p"
+                        ]
+                    ):
+
+                        await request_files(
+                            context,
+                            update.effective_user.id,
+                            "tomodachi_game",
+                            season_id,
+                            quality
+                        )
+
+                        return
 
         except Exception as error:
 
             print(
-                f"Deep link error: {error}"
+                f"❌ Deep link error: {error}"
             )
+
 
     # =========================
     # NORMAL START
@@ -803,11 +779,9 @@ async def quality_request(
 
         return
 
-    user_id = query.from_user.id
-
     await request_files(
         context,
-        user_id,
+        query.from_user.id,
         anime_id,
         season_id,
         quality
@@ -921,26 +895,56 @@ async def file_retry(
 
 
 # =========================
+# GET REAL BOT USERNAME
+# =========================
+
+async def get_bot_username(
+    context
+):
+
+    bot_info = await context.bot.get_me()
+
+    return bot_info.username
+
+
+# =========================
 # QUALITY BUTTON
 # =========================
 
 def quality_button(
+    bot_username,
     anime_id,
     season_id,
     quality
 ):
 
-    payload = (
-        f"{anime_id}_"
-        f"{season_id}_"
-        f"{quality}"
-    )
+    if anime_id == "dating_sim":
+
+        payload = (
+            f"dating-sim-"
+            f"{season_id}-"
+            f"{quality}"
+        )
+
+    elif anime_id == "tomodachi_game":
+
+        payload = (
+            f"tomodachi-game-"
+            f"{season_id}-"
+            f"{quality}"
+        )
+
+    else:
+
+        raise ValueError(
+            "Unknown anime ID"
+        )
 
     return InlineKeyboardButton(
         quality,
         url=(
             f"https://t.me/"
-            f"{BOT_USERNAME}"
+            f"{bot_username}"
             f"?start={payload}"
         )
     )
@@ -957,6 +961,10 @@ async def post(
 
     anime = ANIME["dating_sim"]
 
+    bot_username = await get_bot_username(
+        context
+    )
+
     await context.bot.send_message(
         chat_id=CHANNEL,
         text=(
@@ -966,26 +974,25 @@ async def post(
         )
     )
 
-    # =========================
-    # SEASON 1
-    # =========================
-
     buttons_s1 = [
         [
 
             quality_button(
+                bot_username,
                 "dating_sim",
                 "1",
                 "480p"
             ),
 
             quality_button(
+                bot_username,
                 "dating_sim",
                 "1",
                 "720p"
             ),
 
             quality_button(
+                bot_username,
                 "dating_sim",
                 "1",
                 "1080p"
@@ -1002,26 +1009,25 @@ async def post(
         )
     )
 
-    # =========================
-    # SEASON 2
-    # =========================
-
     buttons_s2 = [
         [
 
             quality_button(
+                bot_username,
                 "dating_sim",
                 "2",
                 "480p"
             ),
 
             quality_button(
+                bot_username,
                 "dating_sim",
                 "2",
                 "720p"
             ),
 
             quality_button(
+                bot_username,
                 "dating_sim",
                 "2",
                 "1080p"
@@ -1052,6 +1058,10 @@ async def post_tomodachi(
     context: ContextTypes.DEFAULT_TYPE
 ):
 
+    bot_username = await get_bot_username(
+        context
+    )
+
     text = (
         "🎬 Tomodachi Game\n\n"
 
@@ -1081,18 +1091,21 @@ async def post_tomodachi(
         [
 
             quality_button(
+                bot_username,
                 "tomodachi_game",
                 "1",
                 "480p"
             ),
 
             quality_button(
+                bot_username,
                 "tomodachi_game",
                 "1",
                 "720p"
             ),
 
             quality_button(
+                bot_username,
                 "tomodachi_game",
                 "1",
                 "1080p"
@@ -1118,7 +1131,9 @@ async def post_tomodachi(
 # POST INIT
 # =========================
 
-async def post_init(application):
+async def post_init(
+    application
+):
 
     await restore_timers(
         application
@@ -1196,6 +1211,8 @@ application.add_handler(
 # RUN
 # =========================
 
-print("🤖 Zyn Anime Bot starting...")
+print(
+    "🤖 Zyn Anime Bot starting..."
+)
 
 application.run_polling()
