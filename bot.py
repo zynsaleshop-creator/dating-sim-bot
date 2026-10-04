@@ -64,7 +64,17 @@ ANIME = {
                         12: 19
                     },
 
-                    "720p": {},
+                    "720p": {
+                        1: 53,
+                        2: 54,
+                        3: 55,
+                        4: 56,
+                        5: 57,
+                        6: 58,
+                        7: 59,
+                        8: 60
+                    },
+
                     "1080p": {}
                 }
             },
@@ -651,7 +661,6 @@ async def start(
 
         try:
 
-            # Dating Sim
             if payload.startswith(
                 "dating-sim-"
             ):
@@ -685,8 +694,6 @@ async def start(
 
                         return
 
-
-            # Tomodachi Game
             if payload.startswith(
                 "tomodachi-game-"
             ):
@@ -725,11 +732,6 @@ async def start(
             print(
                 f"❌ Deep link error: {error}"
             )
-
-
-    # =========================
-    # NORMAL START
-    # =========================
 
     keyboard = [
         [
