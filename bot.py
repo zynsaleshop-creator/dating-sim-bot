@@ -1,8 +1,8 @@
-
 import os
 import asyncio
 import json
 import time
+import asyncpg
 
 from telegram import (
     Update,
@@ -31,7 +31,7 @@ CHANNEL = "@ZynAnimeHub"
 REQUIRED_CHANNEL = "@ZynAnime"
 
 DELETE_AFTER = 15 * 60
-PENDING_FILE = "pending_deletions.json"
+DATABASE_URL = os.environ["DATABASE_URL"]
 
 WEBHOOK_URL = (
     "https://dating-sim-bot-production.up.railway.app/"
@@ -109,20 +109,35 @@ ANIME = {
 
 
 # =========================
-# PENDING DELETIONS
+# PENDING DELETIONS — POSTGRESQL
 # =========================
 
-def load_pending():
-    try:
-        with open(PENDING_FILE, "r") as f:
-            return json.load(f)
-    except Exception:
-        return []
+async def restore_timers(application):
+    pool = application.bot_data["db_pool"]
 
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT * FROM pending_deletions"
+        )
 
-def save_pending(data):
-    with open(PENDING_FILE, "w") as f:
-        json.dump(data, f)
+    for row in rows:
+        item = dict(row)
+
+        asyncio.create_task(
+            deletion_timer(
+                application,
+                item["id"],
+                item["user_id"],
+                json.loads(item["message_ids"]),
+                item["warning_id"],
+                item["end_id"],
+                item["follow_id"],
+                item["anime_id"],
+                item["season_id"],
+                item["quality"],
+                item["delete_at"]
+            )
+        )
 
 
 # =========================
@@ -166,6 +181,7 @@ async def is_member(context, user_id):
 
 async def deletion_timer(
     context,
+    pending_id,
     user_id,
     message_ids,
     warning_id,
@@ -173,9 +189,10 @@ async def deletion_timer(
     follow_id,
     anime_id,
     season_id,
-    quality
+    quality,
+    delete_at
 ):
-    await asyncio.sleep(DELETE_AFTER)
+    await asyncio.sleep(max(0, delete_at - time.time()))
 
     await delete_messages(context, user_id, message_ids)
 
@@ -188,15 +205,13 @@ async def deletion_timer(
         except Exception:
             pass
 
-    pending = load_pending()
-    pending = [
-        item for item in pending
-        if not (
-            item.get("user_id") == user_id
-            and item.get("message_ids") == message_ids
+    pool = context.bot_data["db_pool"]
+
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "DELETE FROM pending_deletions WHERE id = $1",
+            pending_id
         )
-    ]
-    save_pending(pending)
 
     keyboard = [[
         InlineKeyboardButton(
@@ -212,66 +227,6 @@ async def deletion_timer(
         text="Files deleted successfully ✅\nCan request files again",
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
-
-
-# =========================
-# RESTORE TIMERS
-# =========================
-
-async def restore_timers(application):
-    pending = load_pending()
-    now = time.time()
-
-    for item in pending:
-        remaining = item["delete_at"] - now
-        if remaining <= 0:
-            remaining = 1
-
-        async def restored_timer(item=item, remaining=remaining):
-            await asyncio.sleep(remaining)
-
-            user_id = item["user_id"]
-
-            await delete_messages(
-                application,
-                user_id,
-                item["message_ids"]
-            )
-
-            for message_id in [
-                item["warning_id"],
-                item["end_id"],
-                item["follow_id"]
-            ]:
-                try:
-                    await application.bot.delete_message(
-                        chat_id=user_id,
-                        message_id=message_id
-                    )
-                except Exception:
-                    pass
-
-            current = load_pending()
-            current = [x for x in current if x != item]
-            save_pending(current)
-
-            keyboard = [[
-                InlineKeyboardButton(
-                    "♻️ Try Again ♻️",
-                    callback_data=(
-                        f"file_retry|{item['anime_id']}|"
-                        f"{item['season_id']}|{item['quality']}"
-                    )
-                )
-            ]]
-
-            await application.bot.send_message(
-                chat_id=user_id,
-                text="Files deleted successfully ✅\nCan request files again",
-                reply_markup=InlineKeyboardMarkup(keyboard)
-            )
-
-        asyncio.create_task(restored_timer())
 
 
 # =========================
@@ -418,25 +373,34 @@ async def request_files(context, user_id, anime_id, season_id, quality):
     )
 
     delete_at = time.time() + DELETE_AFTER
-    pending = load_pending()
+    pool = context.application.bot_data["db_pool"]
 
-    pending.append({
-        "user_id": user_id,
-        "message_ids": sent_messages,
-        "warning_id": warning.message_id,
-        "end_id": end_message.message_id,
-        "follow_id": follow.message_id,
-        "anime_id": anime_id,
-        "season_id": season_id,
-        "quality": quality,
-        "delete_at": delete_at
-    })
-
-    save_pending(pending)
+    async with pool.acquire() as conn:
+        pending_id = await conn.fetchval(
+            """
+            INSERT INTO pending_deletions
+            (
+                user_id, message_ids, warning_id, end_id,
+                follow_id, anime_id, season_id, quality, delete_at
+            )
+            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+            RETURNING id
+            """,
+            user_id,
+            json.dumps(sent_messages),
+            warning.message_id,
+            end_message.message_id,
+            follow.message_id,
+            anime_id,
+            season_id,
+            quality,
+            delete_at
+        )
 
     asyncio.create_task(
         deletion_timer(
             context,
+            pending_id,
             user_id,
             sent_messages,
             warning.message_id,
@@ -444,7 +408,8 @@ async def request_files(context, user_id, anime_id, season_id, quality):
             follow.message_id,
             anime_id,
             season_id,
-            quality
+            quality,
+            delete_at
         )
     )
 
@@ -719,6 +684,31 @@ async def post_tomodachi(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # =========================
 
 async def post_init(application):
+    pool = await asyncpg.create_pool(
+        DATABASE_URL,
+        ssl="require"
+    )
+
+    application.bot_data["db_pool"] = pool
+
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS pending_deletions (
+                id BIGSERIAL PRIMARY KEY,
+                user_id BIGINT NOT NULL,
+                message_ids TEXT NOT NULL,
+                warning_id BIGINT NOT NULL,
+                end_id BIGINT NOT NULL,
+                follow_id BIGINT NOT NULL,
+                anime_id TEXT NOT NULL,
+                season_id TEXT NOT NULL,
+                quality TEXT NOT NULL,
+                delete_at DOUBLE PRECISION NOT NULL
+            )
+            """
+        )
+
     await restore_timers(application)
 
 
@@ -742,10 +732,6 @@ application = (
 application.add_handler(CommandHandler("start", start))
 application.add_handler(CommandHandler("post", post))
 application.add_handler(CommandHandler("post_tomodachi", post_tomodachi))
-
-application.add_handler(
-    CallbackQueryHandler(quality_request, pattern=r"^request\|")
-)
 
 application.add_handler(
     CallbackQueryHandler(membership_retry, pattern=r"^membership_retry\|")
