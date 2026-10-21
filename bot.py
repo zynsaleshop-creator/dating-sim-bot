@@ -104,6 +104,23 @@ ANIME = {
                 }
             }
         }
+    },
+
+    "goblin": {
+        "title": "So What's Wrong with Getting Reborn as a Goblin?",
+        "seasons": {
+            "1": {
+                "episodes": {
+                    "480p": {
+                        1: 91, 2: 92, 3: 93, 4: 94
+                    },
+                    "720p": {
+                        1: 95, 2: 96, 3: 97, 4: 98
+                    },
+                    "1080p": {}
+                }
+            }
+        }
     }
 }
 
@@ -462,6 +479,25 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         )
                         return
 
+            if payload.startswith("goblin-"):
+                values = payload[len("goblin-"):].split("-")
+
+                if len(values) == 2:
+                    season_id, quality = values
+
+                    if (
+                        season_id in ANIME["goblin"]["seasons"]
+                        and quality in ["480p", "720p", "1080p"]
+                    ):
+                        await request_files(
+                            context,
+                            update.effective_user.id,
+                            "goblin",
+                            season_id,
+                            quality
+                        )
+                        return
+
         except Exception as error:
             print(f"❌ Deep link error: {error}")
 
@@ -584,6 +620,8 @@ def quality_button(bot_username, anime_id, season_id, quality):
         payload = f"dating-sim-{season_id}-{quality}"
     elif anime_id == "tomodachi_game":
         payload = f"tomodachi-game-{season_id}-{quality}"
+    elif anime_id == "goblin":
+        payload = f"goblin-{season_id}-{quality}"
     else:
         raise ValueError("Unknown anime ID")
 
@@ -680,6 +718,43 @@ async def post_tomodachi(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 # =========================
+# POST GOBLIN ANIME
+# =========================
+
+async def post_goblin(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE
+):
+    anime = ANIME["goblin"]
+    bot_username = await get_bot_username(context)
+
+    await context.bot.send_message(
+        chat_id=CHANNEL,
+        text=(
+            f"🎬 {anime['title']}\n\n"
+            "Season 1 — Episodes 1–4 available\n\n"
+            "📺 Choose your preferred video quality below."
+        )
+    )
+
+    buttons = [[
+        quality_button(bot_username, "goblin", "1", "480p"),
+        quality_button(bot_username, "goblin", "1", "720p"),
+        quality_button(bot_username, "goblin", "1", "1080p")
+    ]]
+
+    await context.bot.send_message(
+        chat_id=CHANNEL,
+        text="Season 1 — Episodes 1–4",
+        reply_markup=InlineKeyboardMarkup(buttons)
+    )
+
+    await update.message.reply_text(
+        "✅ Goblin anime posted to ZynAnimeHub."
+    )
+
+
+# =========================
 # POST INIT
 # =========================
 
@@ -732,6 +807,7 @@ application = (
 application.add_handler(CommandHandler("start", start))
 application.add_handler(CommandHandler("post", post))
 application.add_handler(CommandHandler("post_tomodachi", post_tomodachi))
+application.add_handler(CommandHandler("post_goblin", post_goblin))
 
 application.add_handler(
     CallbackQueryHandler(membership_retry, pattern=r"^membership_retry\|")
