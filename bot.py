@@ -218,7 +218,7 @@ async def deletion_timer(
 
     await delete_messages(context, user_id, message_ids)
 
-    for message_id in [warning_id, end_id, follow_id]:
+    for message_id in [warning_id, follow_id]:
         try:
             await context.bot.delete_message(
                 chat_id=user_id,
@@ -246,7 +246,7 @@ async def deletion_timer(
 
     await context.bot.send_message(
         chat_id=user_id,
-        text="Files deleted successfully ✅\nCan request files again",
+        text="Files deleted successfully ✅\nYou can request them again.",
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
 
@@ -372,11 +372,6 @@ async def request_files(context, user_id, anime_id, season_id, quality):
         )
     )
 
-    end_message = await context.bot.send_message(
-        chat_id=user_id,
-        text=f"🎬 END OF SEASON {season_id} 🏁"
-    )
-
     keyboard = [[
         InlineKeyboardButton(
             "ZynAnimeHub",
@@ -405,13 +400,12 @@ async def request_files(context, user_id, anime_id, season_id, quality):
                 user_id, message_ids, warning_id, end_id,
                 follow_id, anime_id, season_id, quality, delete_at
             )
-            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+            VALUES ($1,$2,$3,0,$4,$5,$6,$7,$8)
             RETURNING id
             """,
             user_id,
             json.dumps(sent_messages),
             warning.message_id,
-            end_message.message_id,
             follow.message_id,
             anime_id,
             season_id,
@@ -426,7 +420,7 @@ async def request_files(context, user_id, anime_id, season_id, quality):
             user_id,
             sent_messages,
             warning.message_id,
-            end_message.message_id,
+            0,
             follow.message_id,
             anime_id,
             season_id,
