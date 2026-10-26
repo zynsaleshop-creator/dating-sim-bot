@@ -29,6 +29,7 @@ STORAGE_CHAT_ID = -1003947631814
 
 CHANNEL = "@ZynAnimeHub"
 REQUIRED_CHANNEL = "@ZynAnime"
+REQUIRED_HENTAI_CHANNEL = "@ZynHentaiVault"
 
 DELETE_AFTER = 15 * 60
 DATABASE_URL = os.environ["DATABASE_URL"]
@@ -183,15 +184,21 @@ async def delete_messages(context, chat_id, message_ids):
 
 async def is_member(context, user_id):
     try:
-        member = await context.bot.get_chat_member(
+        member1 = await context.bot.get_chat_member(
             chat_id=REQUIRED_CHANNEL,
             user_id=user_id
         )
-        return member.status in [
-            "member",
-            "administrator",
-            "creator"
-        ]
+        member2 = await context.bot.get_chat_member(
+            chat_id=REQUIRED_HENTAI_CHANNEL,
+            user_id=user_id
+        )
+
+        valid_statuses = ["member", "administrator", "creator"]
+
+        return (
+            member1.status in valid_statuses
+            and member2.status in valid_statuses
+        )
     except Exception as error:
         print(f"Membership check error: {error}")
         return False
@@ -292,8 +299,14 @@ async def request_files(context, user_id, anime_id, season_id, quality):
         keyboard = [
             [
                 InlineKeyboardButton(
-                    "📢 Join Channel",
-                    url="https://t.me/zynanime"
+                    "📢 Join Main Channel",
+                    url="https://t.me/ZynAnime"
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    "🔞 Join Hentai Channel",
+                    url="https://t.me/ZynHentaiVault"
                 )
             ],
             [
@@ -310,9 +323,12 @@ async def request_files(context, user_id, anime_id, season_id, quality):
         await context.bot.send_message(
             chat_id=user_id,
             text=(
-                "🔒 You must join our channel "
-                "before requesting anime files."
+                "🔒 You must join <b>both</b> channels "
+                "before requesting anime files:\n\n"
+                "• @ZynAnime\n"
+                "• @ZynHentaiVault"
             ),
+            parse_mode="HTML",
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
         return
@@ -373,16 +389,24 @@ async def request_files(context, user_id, anime_id, season_id, quality):
         parse_mode="HTML"
     )
 
-    keyboard = [[
-        InlineKeyboardButton(
-            "📢 Main Channel",
-            url="https://t.me/ZynAnimeHub"
-        ),
-        InlineKeyboardButton(
-            "🔄 Backup Channel",
-            url="https://t.me/ZynAnime"
-        )
-    ]]
+    keyboard = [
+        [
+            InlineKeyboardButton(
+                "📢 Main Channel",
+                url="https://t.me/ZynAnimeHub"
+            ),
+            InlineKeyboardButton(
+                "🔄 Backup Channel",
+                url="https://t.me/ZynAnime"
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                "🔞 Hentai Channel",
+                url="https://t.me/ZynHentaiVault"
+            )
+        ]
+    ]
     follow = await context.bot.send_message(
         chat_id=user_id,
         text=(
@@ -405,12 +429,13 @@ async def request_files(context, user_id, anime_id, season_id, quality):
                 user_id, message_ids, warning_id, end_id,
                 follow_id, anime_id, season_id, quality, delete_at
             )
-            VALUES ($1,$2,$3,0,$4,$5,$6,$7,$8,$9)
+            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
             RETURNING id
             """,
             user_id,
             json.dumps(sent_messages),
             warning.message_id,
+            0,                          # end_id (no longer used)
             follow.message_id,
             anime_id,
             season_id,
@@ -562,7 +587,7 @@ async def membership_retry(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if not member:
         await query.answer(
-            "❌ Please join the channel first.",
+            "❌ Please join both channels first.",
             show_alert=True
         )
         return
