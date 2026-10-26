@@ -405,7 +405,7 @@ async def request_files(context, user_id, anime_id, season_id, quality):
                 user_id, message_ids, warning_id, end_id,
                 follow_id, anime_id, season_id, quality, delete_at
             )
-            VALUES ($1,$2,$3,0,$4,$5,$6,$7,$8)
+            VALUES ($1,$2,$3,0,$4,$5,$6,$7,$8,$9)
             RETURNING id
             """,
             user_id,
