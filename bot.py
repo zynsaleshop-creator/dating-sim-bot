@@ -366,26 +366,31 @@ async def request_files(context, user_id, anime_id, season_id, quality):
     warning = await context.bot.send_message(
         chat_id=user_id,
         text=(
-            "⚠️ Files will be deleted in 15 minutes.\n\n"
-            "Please save/download them now or send them "
-            "to another chat if you want to keep them."
-        )
+            "<blockquote>⚠️ <b>FILE EXPIRY NOTICE</b>\n\n"
+            "These files will be deleted automatically in 15 minutes.\n"
+            "Save or forward them if you want to keep them.</blockquote>"
+        ),
+        parse_mode="HTML"
     )
 
     keyboard = [[
         InlineKeyboardButton(
-            "ZynAnimeHub",
+            "📢 Main Channel",
             url="https://t.me/ZynAnimeHub"
         ),
         InlineKeyboardButton(
-            "ZynAnime",
+            "🔄 Backup Channel",
             url="https://t.me/ZynAnime"
         )
     ]]
-
     follow = await context.bot.send_message(
         chat_id=user_id,
-        text="🎬 Follow our channels for more anime:",
+        text=(
+            "🎌 <b>STAY CONNECTED WITH ZYN ANIME</b>\n\n"
+            "Get new episodes, updates, and more anime "
+            "from our channels!"
+        ),
+        parse_mode="HTML",
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
 
