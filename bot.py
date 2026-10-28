@@ -116,13 +116,16 @@ ANIME = {
             "1": {
                 "episodes": {
                     "480p": {
-                        1: 91, 2: 92, 3: 93, 4: 94
+                        1: 91, 2: 92, 3: 93, 4: 94,
+                        5: 115
                     },
                     "720p": {
-                        1: 95, 2: 96, 3: 97, 4: 98
+                        1: 95, 2: 96, 3: 97, 4: 98,
+                        5: 116
                     },
                     "1080p": {
-                        1: 100, 2: 101, 3: 103, 4: 104
+                        1: 100, 2: 101, 3: 103, 4: 104,
+                        5: 117
                     }
                 }
             }
@@ -761,7 +764,7 @@ async def post_goblin(
         chat_id=CHANNEL,
         text=(
             f"🎬 {anime['title']}\n\n"
-            "Season 1 — Episodes 1–4 available\n\n"
+            "Season 1 — Episodes 1–5 available\n\n"
             "📺 Choose your preferred video quality below."
         )
     )
@@ -774,7 +777,7 @@ async def post_goblin(
 
     await context.bot.send_message(
         chat_id=CHANNEL,
-        text="Season 1 — Episodes 1–4",
+        text="Season 1 — Episodes 1–5",
         reply_markup=InlineKeyboardMarkup(buttons)
     )
 
