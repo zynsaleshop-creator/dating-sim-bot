@@ -130,6 +130,26 @@ ANIME = {
                 }
             }
         }
+    },
+
+    "shangri_la": {
+        "title": "Shangri-La Frontier",
+        "seasons": {
+            "1": {
+                "episodes": {
+                    "480p": {
+                        1: 62, 2: 63, 3: 64, 4: 65,
+                        5: 66, 6: 67, 7: 68, 8: 69,
+                        9: 70, 10: 71, 11: 72, 12: 73,
+                        13: 74, 14: 75, 15: 76, 16: 77,
+                        17: 78, 18: 79, 19: 80, 20: 81,
+                        21: 82, 22: 83, 23: 84, 24: 85
+                    },
+                    "720p": {},
+                    "1080p": {}
+                }
+            }
+        }
     }
 }
 
@@ -438,7 +458,7 @@ async def request_files(context, user_id, anime_id, season_id, quality):
             user_id,
             json.dumps(sent_messages),
             warning.message_id,
-            0,                          # end_id (no longer used)
+            0,
             follow.message_id,
             anime_id,
             season_id,
@@ -525,6 +545,25 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
                             context,
                             update.effective_user.id,
                             "goblin",
+                            season_id,
+                            quality
+                        )
+                        return
+
+            if payload.startswith("shangri-la-"):
+                values = payload[len("shangri-la-"):].split("-")
+
+                if len(values) == 2:
+                    season_id, quality = values
+
+                    if (
+                        season_id in ANIME["shangri_la"]["seasons"]
+                        and quality in ["480p", "720p", "1080p"]
+                    ):
+                        await request_files(
+                            context,
+                            update.effective_user.id,
+                            "shangri_la",
                             season_id,
                             quality
                         )
@@ -654,6 +693,8 @@ def quality_button(bot_username, anime_id, season_id, quality):
         payload = f"tomodachi-game-{season_id}-{quality}"
     elif anime_id == "goblin":
         payload = f"goblin-{season_id}-{quality}"
+    elif anime_id == "shangri_la":
+        payload = f"shangri-la-{season_id}-{quality}"
     else:
         raise ValueError("Unknown anime ID")
 
@@ -787,6 +828,38 @@ async def post_goblin(
 
 
 # =========================
+# POST SHANGRI-LA FRONTIER
+# =========================
+
+async def post_shangri(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    anime = ANIME["shangri_la"]
+    bot_username = await get_bot_username(context)
+
+    await context.bot.send_message(
+        chat_id=CHANNEL,
+        text=(
+            f"🎬 {anime['title']}\n\n"
+            "Season 1 — 24 Episodes available (480p)\n\n"
+            "📺 Choose your preferred video quality below."
+        )
+    )
+
+    buttons = [[
+        quality_button(bot_username, "shangri_la", "1", "480p"),
+        quality_button(bot_username, "shangri_la", "1", "720p"),
+        quality_button(bot_username, "shangri_la", "1", "1080p")
+    ]]
+
+    await context.bot.send_message(
+        chat_id=CHANNEL,
+        text="Season 1 — 24 Episodes",
+        reply_markup=InlineKeyboardMarkup(buttons)
+    )
+
+    await update.message.reply_text("✅ Shangri-La Frontier posted.")
+
+
+# =========================
 # POST INIT
 # =========================
 
@@ -840,6 +913,7 @@ application.add_handler(CommandHandler("start", start))
 application.add_handler(CommandHandler("post", post))
 application.add_handler(CommandHandler("post_tomodachi", post_tomodachi))
 application.add_handler(CommandHandler("post_goblin", post_goblin))
+application.add_handler(CommandHandler("post_shangri", post_shangri))
 
 application.add_handler(
     CallbackQueryHandler(membership_retry, pattern=r"^membership_retry\|")
