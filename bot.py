@@ -356,6 +356,7 @@ async def request_files(
                 from_chat_id=STORAGE_CHAT_ID,
                 message_id=storage_message_id,
             )
+
             sent_messages.append(copied.message_id)
 
         except Exception as error:
@@ -371,13 +372,17 @@ async def request_files(
         )
         return
 
+    # UPDATED EXPIRY NOTICE
+    # Original wording retained; only formatting changed.
+
     warning = await context.bot.send_message(
         chat_id=user_id,
         text=(
-            "⚠️ FILE EXPIRY NOTICE\n\n"
-            "These files will be deleted automatically in 15 minutes. "
-            "Save them before the timer expires."
+            "⚠️ <b>FILE EXPIRY NOTICE</b>\n\n"
+            "❝ These files will be deleted automatically in "
+            "<b>15 minutes</b>. Save them before the timer expires. ❞"
         ),
+        parse_mode="HTML",
     )
 
     follow = await context.bot.send_message(
@@ -517,6 +522,7 @@ async def membership_retry(
     try:
         parts = query.data.split("|")
         anime_id, season_id, quality = parts[1:4]
+
     except Exception:
         await query.answer()
         return
@@ -555,6 +561,7 @@ async def file_retry(
     try:
         parts = query.data.split("|")
         anime_id, season_id, quality = parts[1:4]
+
     except Exception:
         await query.answer()
         return
@@ -738,7 +745,6 @@ async def post_shangri(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
 ):
-    anime = ANIME["shangri_la"]
     bot_username = await get_bot_username(context)
 
     await context.bot.send_message(
@@ -823,21 +829,26 @@ application = (
     .build()
 )
 
+
 # =========================
 # COMMANDS
 # =========================
 
 application.add_handler(CommandHandler("start", start))
 application.add_handler(CommandHandler("post", post))
+
 application.add_handler(
     CommandHandler("post_tomodachi", post_tomodachi)
 )
+
 application.add_handler(
     CommandHandler("post_goblin", post_goblin)
 )
+
 application.add_handler(
     CommandHandler("post_shangri", post_shangri)
 )
+
 
 # =========================
 # CALLBACK HANDLERS
@@ -856,6 +867,7 @@ application.add_handler(
         pattern=r"^file_retry\|",
     )
 )
+
 
 # =========================
 # RUN — WEBHOOK
