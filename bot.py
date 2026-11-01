@@ -1,14 +1,13 @@
+
 import os
 import asyncio
 import json
 import time
+import logging
 import asyncpg
 
-from telegram import (
-    Update,
-    InlineKeyboardButton,
-    InlineKeyboardMarkup,
-)
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.constants import ParseMode
 from telegram.ext import (
     Application,
     CommandHandler,
@@ -16,9 +15,9 @@ from telegram.ext import (
     ContextTypes,
 )
 
-# =========================
+# =====================================
 # SETTINGS
-# =========================
+# =====================================
 
 TOKEN = os.environ["BOT_TOKEN"]
 LOCAL_API = os.environ["LOCAL_BOT_API"].rstrip("/")
@@ -27,8 +26,7 @@ DATABASE_URL = os.environ["DATABASE_URL"]
 STORAGE_CHAT_ID = -1003947631814
 
 CHANNEL = "@ZynAnimeHub"
-REQUIRED_CHANNEL = "@ZynAnime"
-REQUIRED_HENTAI_CHANNEL = "@ZynHentaiVault"
+REQUIRED_CHANNELS = ["@ZynAnime", "@ZynHentaiVault"]
 
 DELETE_AFTER = 15 * 60
 
@@ -37,9 +35,13 @@ WEBHOOK_URL = (
     "telegram-webhook"
 )
 
-# =========================
-# ANIME DATA
-# =========================
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+
+# =====================================
+# ANIME DATABASE
+# =====================================
 
 ANIME = {
     "dating_sim": {
@@ -79,14 +81,6 @@ ANIME = {
 
     "tomodachi_game": {
         "title": "Tomodachi Game",
-        "genres": "Drama, Mystery, Psychological",
-        "type": "TV",
-        "rating": "7.7/10",
-        "status": "FINISHED",
-        "first_aired": "2022-04-06",
-        "last_aired": "2022-06-22",
-        "runtime": "22 minutes",
-        "episodes_count": 12,
         "seasons": {
             "1": {
                 "episodes": {
@@ -145,9 +139,67 @@ ANIME = {
     },
 }
 
-# =========================
-# DATABASE / DELETION TIMERS
-# =========================
+
+# =====================================
+# DATABASE AND EXPIRY
+# =====================================
+
+async def delete_messages(bot, chat_id, message_ids):
+    for message_id in message_ids:
+        try:
+            await bot.delete_message(chat_id, int(message_id))
+        except Exception as error:
+            logger.warning("Message deletion failed: %s", error)
+
+
+async def deletion_timer(
+    application, pending_id, user_id, message_ids,
+    warning_id, follow_id, anime_id, season_id,
+    quality, delete_at,
+):
+    await asyncio.sleep(max(0, delete_at - time.time()))
+
+    bot = application.bot
+
+    await delete_messages(bot, user_id, message_ids)
+
+    for message_id in (warning_id, follow_id):
+        if message_id:
+            await delete_messages(bot, user_id, [message_id])
+
+    pool = application.bot_data["db_pool"]
+
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "DELETE FROM pending_deletions WHERE id = $1",
+            pending_id,
+        )
+
+    keyboard = InlineKeyboardMarkup([[
+        InlineKeyboardButton(
+            "♻️ Try Again ♻️",
+            callback_data=(
+                f"file_retry|{anime_id}|{season_id}|{quality}"
+            ),
+        )
+    ]])
+
+    try:
+        await bot.send_message(
+            chat_id=user_id,
+            text=(
+                "<blockquote>"
+                "<b>❌ FILES DELETED</b>\n\n"
+                "Your requested files have expired.\n"
+                "You can request them again below."
+                "</blockquote>"
+            ),
+            parse_mode=ParseMode.HTML,
+            reply_markup=keyboard,
+        )
+    except Exception:
+        logger.exception("Could not send expiry message.")
+
 
 async def restore_timers(application):
     pool = application.bot_data["db_pool"]
@@ -165,7 +217,6 @@ async def restore_timers(application):
                 item["user_id"],
                 json.loads(item["message_ids"]),
                 item["warning_id"],
-                item["end_id"],
                 item["follow_id"],
                 item["anime_id"],
                 item["season_id"],
@@ -175,166 +226,118 @@ async def restore_timers(application):
         )
 
 
-async def delete_messages(context, chat_id, message_ids):
-    for message_id in message_ids:
-        try:
-            await context.bot.delete_message(
-                chat_id=chat_id,
-                message_id=message_id,
-            )
-        except Exception as error:
-            print(f"Message deletion failed: {error}")
+async def post_init(application):
+    pool = await asyncpg.create_pool(
+        DATABASE_URL,
+        ssl="require",
+    )
 
-
-async def deletion_timer(
-    context,
-    pending_id,
-    user_id,
-    message_ids,
-    warning_id,
-    end_id,
-    follow_id,
-    anime_id,
-    season_id,
-    quality,
-    delete_at,
-):
-    await asyncio.sleep(max(0, delete_at - time.time()))
-
-    await delete_messages(context, user_id, message_ids)
-
-    for message_id in (warning_id, follow_id):
-        if not message_id:
-            continue
-
-        try:
-            await context.bot.delete_message(
-                chat_id=user_id,
-                message_id=message_id,
-            )
-        except Exception:
-            pass
-
-    pool = context.bot_data["db_pool"]
+    application.bot_data["db_pool"] = pool
 
     async with pool.acquire() as conn:
         await conn.execute(
-            "DELETE FROM pending_deletions WHERE id = $1",
-            pending_id,
+            """
+            CREATE TABLE IF NOT EXISTS pending_deletions (
+                id BIGSERIAL PRIMARY KEY,
+                user_id BIGINT NOT NULL,
+                message_ids TEXT NOT NULL,
+                warning_id BIGINT NOT NULL,
+                end_id BIGINT NOT NULL,
+                follow_id BIGINT NOT NULL,
+                anime_id TEXT NOT NULL,
+                season_id TEXT NOT NULL,
+                quality TEXT NOT NULL,
+                delete_at DOUBLE PRECISION NOT NULL
+            )
+            """
         )
 
-    keyboard = [[
-        InlineKeyboardButton(
-            "♻️ Try Again ♻️",
-            callback_data=f"file_retry|{anime_id}|{season_id}|{quality}",
-        )
-    ]]
-
-    try:
-        await context.bot.send_message(
-            chat_id=user_id,
-            text="Files deleted successfully ✅\nYou can request them again.",
-            reply_markup=InlineKeyboardMarkup(keyboard),
-        )
-    except Exception as error:
-        print(f"Could not send expiry message: {error}")
+    await restore_timers(application)
 
 
-# =========================
+async def post_shutdown(application):
+    pool = application.bot_data.get("db_pool")
+    if pool:
+        await pool.close()
+
+
+# =====================================
 # MEMBERSHIP CHECK
-# =========================
+# =====================================
 
 async def is_member(context, user_id):
-    required_channels = [
-        REQUIRED_CHANNEL,
-        REQUIRED_HENTAI_CHANNEL,
-    ]
+    valid = {"member", "administrator", "creator"}
 
-    valid_statuses = {"member", "administrator", "creator"}
-
-    for channel in required_channels:
+    async def check(channel):
         try:
             member = await context.bot.get_chat_member(
                 chat_id=channel,
                 user_id=user_id,
             )
-
-            if member.status not in valid_statuses:
-                return False
-
+            return member.status in valid
         except Exception as error:
-            print(f"Membership check failed for {channel}: {error}")
+            logger.warning(
+                "Membership check failed for %s: %s",
+                channel,
+                error,
+            )
             return False
 
-    return True
+    results = await asyncio.gather(
+        *(check(channel) for channel in REQUIRED_CHANNELS)
+    )
+
+    return all(results)
 
 
-# =========================
-# REQUEST FILES
-# =========================
+def membership_keyboard(anime_id, season_id, quality):
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton(
+            "📢 Join Anime Channel",
+            url="https://t.me/ZynAnime",
+        )],
+        [InlineKeyboardButton(
+            "🔞 Join Hentai Channel",
+            url="https://t.me/ZynHentaiVault",
+        )],
+        [InlineKeyboardButton(
+            "♻️ Try Again",
+            callback_data=(
+                f"membership_retry|{anime_id}|{season_id}|{quality}"
+            ),
+        )],
+    ])
+
+
+# =====================================
+# SEND FILES
+# =====================================
 
 async def request_files(
-    context,
-    user_id,
-    anime_id,
-    season_id,
-    quality,
+    context, user_id, anime_id, season_id, quality
 ):
     anime = ANIME.get(anime_id)
 
     if not anime:
-        await context.bot.send_message(
-            chat_id=user_id,
-            text="❌ Anime not found.",
-        )
+        await context.bot.send_message(user_id, "❌ Anime not found.")
         return
 
     season = anime["seasons"].get(season_id)
 
     if not season:
-        await context.bot.send_message(
-            chat_id=user_id,
-            text="❌ Season not found.",
-        )
+        await context.bot.send_message(user_id, "❌ Season not found.")
         return
 
     episodes = season["episodes"].get(quality, {})
 
     if not episodes:
         await context.bot.send_message(
-            chat_id=user_id,
-            text=(
-                f"❌ {quality} is not available yet.\n\n"
-                "Please try another quality."
-            ),
+            user_id,
+            f"❌ {quality} is not available yet.\n\nPlease try another quality.",
         )
         return
 
     if not await is_member(context, user_id):
-        keyboard = [
-            [
-                InlineKeyboardButton(
-                    "📢 Join Anime Channel",
-                    url="https://t.me/ZynAnime",
-                )
-            ],
-            [
-                InlineKeyboardButton(
-                    "🔞 Join Hentai Channel",
-                    url="https://t.me/ZynHentaiVault",
-                )
-            ],
-            [
-                InlineKeyboardButton(
-                    "♻️ Try Again",
-                    callback_data=(
-                        f"membership_retry|{anime_id}|"
-                        f"{season_id}|{quality}"
-                    ),
-                )
-            ],
-        ]
-
         await context.bot.send_message(
             chat_id=user_id,
             text=(
@@ -343,46 +346,48 @@ async def request_files(
                 "• @ZynAnime\n"
                 "• @ZynHentaiVault"
             ),
-            reply_markup=InlineKeyboardMarkup(keyboard),
+            reply_markup=membership_keyboard(
+                anime_id, season_id, quality
+            ),
         )
         return
 
     sent_messages = []
 
-    for episode_number, storage_message_id in sorted(episodes.items()):
+    for episode_number, storage_id in sorted(episodes.items()):
         try:
             copied = await context.bot.copy_message(
                 chat_id=user_id,
                 from_chat_id=STORAGE_CHAT_ID,
-                message_id=storage_message_id,
+                message_id=storage_id,
             )
-
             sent_messages.append(copied.message_id)
 
-        except Exception as error:
-            print(
-                f"Failed to send {anime_id} episode "
-                f"{episode_number}: {error}"
+        except Exception:
+            logger.exception(
+                "Failed to send %s episode %s",
+                anime_id,
+                episode_number,
             )
 
     if not sent_messages:
         await context.bot.send_message(
-            chat_id=user_id,
-            text="❌ Unable to send the files right now.",
+            user_id,
+            "❌ Unable to send the files right now.",
         )
         return
-
-    # UPDATED EXPIRY NOTICE
-    # Original wording retained; only formatting changed.
 
     warning = await context.bot.send_message(
         chat_id=user_id,
         text=(
-            "⚠️ <b>FILE EXPIRY NOTICE</b>\n\n"
-            "❝ These files will be deleted automatically in "
-            "<b>15 minutes</b>. Save them before the timer expires. ❞"
+            "<blockquote>"
+            "<b>⚠️ FILE EXPIRY NOTICE</b>\n\n"
+            "These files will be deleted automatically in "
+            "<b>15 minutes</b>.\n\n"
+            "Save them before the timer expires."
+            "</blockquote>"
         ),
-        parse_mode="HTML",
+        parse_mode=ParseMode.HTML,
     )
 
     follow = await context.bot.send_message(
@@ -438,12 +443,11 @@ async def request_files(
 
     context.application.create_task(
         deletion_timer(
-            context,
+            context.application,
             pending_id,
             user_id,
             sent_messages,
             warning.message_id,
-            0,
             follow.message_id,
             anime_id,
             season_id,
@@ -453,117 +457,74 @@ async def request_files(
     )
 
 
-# =========================
-# START / DEEP LINKS
-# =========================
+# =====================================
+# START AND DEEP LINKS
+# =====================================
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if context.args:
         payload = context.args[0].lower()
-        print(f"Start payload received: {payload}")
 
-        try:
-            prefixes = {
-                "dating-sim-": "dating_sim",
-                "tomodachi-game-": "tomodachi_game",
-                "goblin-": "goblin",
-                "shangri-la-": "shangri_la",
-            }
+        prefixes = {
+            "dating-sim-": "dating_sim",
+            "tomodachi-game-": "tomodachi_game",
+            "goblin-": "goblin",
+            "shangri-la-": "shangri_la",
+        }
 
-            for prefix, anime_id in prefixes.items():
-                if payload.startswith(prefix):
-                    values = payload[len(prefix):].split("-")
+        for prefix, anime_id in prefixes.items():
+            if payload.startswith(prefix):
+                values = payload[len(prefix):].split("-")
 
-                    if len(values) == 2:
-                        season_id, quality = values
+                if len(values) == 2:
+                    season_id, quality = values
 
-                        if (
-                            season_id in ANIME[anime_id]["seasons"]
-                            and quality in ("480p", "720p", "1080p")
-                        ):
-                            await request_files(
-                                context,
-                                update.effective_user.id,
-                                anime_id,
-                                season_id,
-                                quality,
-                            )
-                            return
-
-        except Exception as error:
-            print(f"Deep-link error: {error}")
-
-    keyboard = [[
-        InlineKeyboardButton(
-            "📚 Browse Anime",
-            url="https://t.me/ZynAnimeHub",
-        )
-    ]]
+                    if (
+                        season_id in ANIME[anime_id]["seasons"]
+                        and quality in ("480p", "720p", "1080p")
+                    ):
+                        await request_files(
+                            context,
+                            update.effective_user.id,
+                            anime_id,
+                            season_id,
+                            quality,
+                        )
+                        return
 
     await update.message.reply_text(
         "🎬 Welcome to Zyn Anime Bot!\n\n"
         "📚 Find your anime in our main channel:\n"
         "👉 Zyn Anime Hub\n\n"
         "Select an anime there and choose your preferred quality.",
-        reply_markup=InlineKeyboardMarkup(keyboard),
+        reply_markup=InlineKeyboardMarkup([[
+            InlineKeyboardButton(
+                "📚 Browse Anime",
+                url="https://t.me/ZynAnimeHub",
+            )
+        ]]),
     )
 
 
-# =========================
-# CALLBACK HANDLERS
-# =========================
+# =====================================
+# RETRY BUTTONS
+# =====================================
 
-async def membership_retry(
-    update: Update,
-    context: ContextTypes.DEFAULT_TYPE,
-):
+async def membership_retry(update, context):
     query = update.callback_query
+    parts = query.data.split("|")
 
-    try:
-        parts = query.data.split("|")
-        anime_id, season_id, quality = parts[1:4]
-
-    except Exception:
+    if len(parts) != 4:
         await query.answer()
         return
 
-    user_id = query.from_user.id
+    _, anime_id, season_id, quality = parts
 
-    if not await is_member(context, user_id):
+    if not await is_member(context, query.from_user.id):
         await query.answer(
             "❌ Please join both channels first.",
             show_alert=True,
         )
-        return
-
-    await query.answer()
-
-    try:
-        await query.message.delete()
-    except Exception:
-        pass
-
-    await request_files(
-        context,
-        user_id,
-        anime_id,
-        season_id,
-        quality,
-    )
-
-
-async def file_retry(
-    update: Update,
-    context: ContextTypes.DEFAULT_TYPE,
-):
-    query = update.callback_query
-
-    try:
-        parts = query.data.split("|")
-        anime_id, season_id, quality = parts[1:4]
-
-    except Exception:
-        await query.answer()
         return
 
     await query.answer()
@@ -582,277 +543,134 @@ async def file_retry(
     )
 
 
-# =========================
-# BOT USERNAME / BUTTONS
-# =========================
+async def file_retry(update, context):
+    query = update.callback_query
+    parts = query.data.split("|")
+
+    if len(parts) != 4:
+        await query.answer()
+        return
+
+    _, anime_id, season_id, quality = parts
+
+    await query.answer()
+
+    try:
+        await query.message.delete()
+    except Exception:
+        pass
+
+    await request_files(
+        context,
+        query.from_user.id,
+        anime_id,
+        season_id,
+        quality,
+    )
+
+
+# =====================================
+# QUALITY BUTTONS
+# =====================================
+
+PREFIXES = {
+    "dating_sim": "dating-sim",
+    "tomodachi_game": "tomodachi-game",
+    "goblin": "goblin",
+    "shangri_la": "shangri-la",
+}
+
 
 async def get_bot_username(context):
-    bot_info = await context.bot.get_me()
-    return bot_info.username
+    return (await context.bot.get_me()).username
 
 
-def quality_button(bot_username, anime_id, season_id, quality):
-    prefixes = {
-        "dating_sim": "dating-sim",
-        "tomodachi_game": "tomodachi-game",
-        "goblin": "goblin",
-        "shangri_la": "shangri-la",
-    }
-
-    prefix = prefixes.get(anime_id)
-
-    if not prefix:
-        raise ValueError(f"Unknown anime ID: {anime_id}")
-
-    payload = f"{prefix}-{season_id}-{quality}"
+def quality_button(username, anime_id, season_id, quality):
+    payload = f"{PREFIXES[anime_id]}-{season_id}-{quality}"
 
     return InlineKeyboardButton(
         quality,
-        url=f"https://t.me/{bot_username}?start={payload}",
+        url=f"https://t.me/{username}?start={payload}",
     )
 
 
-# =========================
-# POST DATING SIM
-# =========================
+# =====================================
+# CHANNEL POSTING
+# =====================================
 
-async def post(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    anime = ANIME["dating_sim"]
-    bot_username = await get_bot_username(context)
-
-    await context.bot.send_message(
-        chat_id=CHANNEL,
-        text=(
-            f"🎬 {anime['title']}\n\n"
-            "Season 1 — 12 Episodes\n"
-            "Season 2 — 12 Episodes"
-        ),
-    )
-
-    for season_id in ("1", "2"):
-        buttons = [[
-            quality_button(
-                bot_username,
-                "dating_sim",
-                season_id,
-                quality,
-            )
-            for quality in ("480p", "720p", "1080p")
-        ]]
-
-        await context.bot.send_message(
-            chat_id=CHANNEL,
-            text=f"Season {season_id}",
-            reply_markup=InlineKeyboardMarkup(buttons),
-        )
-
-    await update.message.reply_text("✅ Dating Sim posted.")
-
-
-# =========================
-# POST TOMODACHI GAME
-# =========================
-
-async def post_tomodachi(
-    update: Update,
-    context: ContextTypes.DEFAULT_TYPE,
+async def post_quality_buttons(
+    context, username, anime_id, season_id
 ):
-    bot_username = await get_bot_username(context)
-
-    await context.bot.send_message(
-        chat_id=CHANNEL,
-        text=(
-            "🎬 Tomodachi Game\n\n"
-            "‣ Genres: Drama, Mystery, Psychological\n"
-            "‣ Type: TV\n"
-            "‣ Average Rating: 7.7/10\n"
-            "‣ Status: FINISHED\n"
-            "‣ First aired: 2022-04-06\n"
-            "‣ Last aired: 2022-06-22\n"
-            "‣ Runtime: 22 minutes\n"
-            "‣ No. of episodes: 12\n\n"
-            "High school student Yuuichi Katagiri values friendship "
-            "above all else. After money for a school trip is stolen, "
-            "Yuuichi and his four friends are drawn into a mysterious "
-            "debt repayment game. To escape, they must take part in "
-            "psychological games that test their trust and friendship."
-        ),
-    )
-
     buttons = [[
-        quality_button(
-            bot_username,
-            "tomodachi_game",
-            "1",
-            quality,
-        )
+        quality_button(username, anime_id, season_id, quality)
         for quality in ("480p", "720p", "1080p")
     ]]
 
     await context.bot.send_message(
         chat_id=CHANNEL,
-        text="Season 1 — 12 Episodes",
+        text=f"Season {season_id}",
         reply_markup=InlineKeyboardMarkup(buttons),
     )
 
-    await update.message.reply_text("✅ Tomodachi Game posted.")
 
-
-# =========================
-# POST GOBLIN ANIME
-# =========================
-
-async def post_goblin(
-    update: Update,
-    context: ContextTypes.DEFAULT_TYPE,
-):
-    anime = ANIME["goblin"]
-    bot_username = await get_bot_username(context)
+async def post_anime(update, context, anime_id):
+    username = await get_bot_username(context)
+    anime = ANIME[anime_id]
 
     await context.bot.send_message(
         chat_id=CHANNEL,
-        text=(
-            f"🎬 {anime['title']}\n\n"
-            "Season 1 — Episodes 1–5 available\n\n"
-            "📺 Choose your preferred video quality below."
-        ),
+        text=f"🎬 {anime['title']}",
     )
 
-    buttons = [[
-        quality_button(
-            bot_username,
-            "goblin",
-            "1",
-            quality,
+    for season_id in anime["seasons"]:
+        await post_quality_buttons(
+            context,
+            username,
+            anime_id,
+            season_id,
         )
-        for quality in ("480p", "720p", "1080p")
-    ]]
-
-    await context.bot.send_message(
-        chat_id=CHANNEL,
-        text="Season 1 — Episodes 1–5",
-        reply_markup=InlineKeyboardMarkup(buttons),
-    )
-
-    await update.message.reply_text("✅ Goblin anime posted.")
-
-
-# =========================
-# POST SHANGRI-LA FRONTIER
-# =========================
-
-async def post_shangri(
-    update: Update,
-    context: ContextTypes.DEFAULT_TYPE,
-):
-    bot_username = await get_bot_username(context)
-
-    await context.bot.send_message(
-        chat_id=CHANNEL,
-        text=(
-            "🎬 Shangri-La Frontier\n\n"
-            "‣ Type: TV\n"
-            "‣ Season: 1\n"
-            "‣ Episodes available: 1–25\n"
-            "‣ Quality available: 480p\n\n"
-            "Rakuro Hizutome, known as Sunraku, is an expert at "
-            "conquering badly designed games. He takes on the "
-            "popular virtual reality game Shangri-La Frontier, "
-            "where his gaming skills lead him into powerful battles "
-            "and extraordinary challenges."
-        ),
-    )
-
-    buttons = [[
-        quality_button(
-            bot_username,
-            "shangri_la",
-            "1",
-            quality,
-        )
-        for quality in ("480p", "720p", "1080p")
-    ]]
-
-    await context.bot.send_message(
-        chat_id=CHANNEL,
-        text="Season 1 — Episodes 1–25",
-        reply_markup=InlineKeyboardMarkup(buttons),
-    )
 
     await update.message.reply_text(
-        "✅ Shangri-La Frontier posted."
+        f"✅ {anime['title']} posted."
     )
 
 
-# =========================
-# POST INIT / DATABASE
-# =========================
-
-async def post_init(application):
-    pool = await asyncpg.create_pool(
-        DATABASE_URL,
-        ssl="require",
-    )
-
-    application.bot_data["db_pool"] = pool
-
-    async with pool.acquire() as conn:
-        await conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS pending_deletions (
-                id BIGSERIAL PRIMARY KEY,
-                user_id BIGINT NOT NULL,
-                message_ids TEXT NOT NULL,
-                warning_id BIGINT NOT NULL,
-                end_id BIGINT NOT NULL,
-                follow_id BIGINT NOT NULL,
-                anime_id TEXT NOT NULL,
-                season_id TEXT NOT NULL,
-                quality TEXT NOT NULL,
-                delete_at DOUBLE PRECISION NOT NULL
-            )
-            """
-        )
-
-    await restore_timers(application)
+async def post(update, context):
+    await post_anime(update, context, "dating_sim")
 
 
-# =========================
+async def post_tomodachi(update, context):
+    await post_anime(update, context, "tomodachi_game")
+
+
+async def post_goblin(update, context):
+    await post_anime(update, context, "goblin")
+
+
+async def post_shangri(update, context):
+    await post_anime(update, context, "shangri_la")
+
+
+# =====================================
 # APPLICATION
-# =========================
+# =====================================
 
 application = (
     Application.builder()
     .token(TOKEN)
     .base_url(f"{LOCAL_API}/bot")
+    .base_file_url(f"{LOCAL_API}/file/bot")
+    .local_mode(True)
     .post_init(post_init)
+    .post_shutdown(post_shutdown)
     .build()
 )
 
-
-# =========================
-# COMMANDS
-# =========================
-
 application.add_handler(CommandHandler("start", start))
 application.add_handler(CommandHandler("post", post))
-
-application.add_handler(
-    CommandHandler("post_tomodachi", post_tomodachi)
-)
-
-application.add_handler(
-    CommandHandler("post_goblin", post_goblin)
-)
-
-application.add_handler(
-    CommandHandler("post_shangri", post_shangri)
-)
-
-
-# =========================
-# CALLBACK HANDLERS
-# =========================
+application.add_handler(CommandHandler("post_tomodachi", post_tomodachi))
+application.add_handler(CommandHandler("post_goblin", post_goblin))
+application.add_handler(CommandHandler("post_shangri", post_shangri))
 
 application.add_handler(
     CallbackQueryHandler(
@@ -867,11 +685,6 @@ application.add_handler(
         pattern=r"^file_retry\|",
     )
 )
-
-
-# =========================
-# RUN — WEBHOOK
-# =========================
 
 print("🤖 Zyn Anime Bot starting...")
 
