@@ -1,4 +1,3 @@
-
 import os
 import asyncio
 import json
@@ -189,8 +188,8 @@ async def deletion_timer(
             chat_id=user_id,
             text=(
                 "<b>❌ FILES DELETED</b>\n\n"
-"Your requested files have expired.\n"
-"You can request them again below."
+                "Your requested files have expired.\n"
+                "You can request them again below."
             ),
             parse_mode=ParseMode.HTML,
             reply_markup=keyboard,
@@ -331,7 +330,8 @@ async def request_files(
     if not episodes:
         await context.bot.send_message(
             user_id,
-            f"❌ {quality} is not available yet.\n\nPlease try another quality.",
+            f"❌ {quality} is not available yet.\n\n"
+            "Please try another quality.",
         )
         return
 
@@ -388,10 +388,6 @@ async def request_files(
         parse_mode=ParseMode.HTML,
     )
 
-    follow = await context.bot.send_message(
-        chat_id=user_id,
-        text=(
-
     delete_at = time.time() + DELETE_AFTER
     pool = context.application.bot_data["db_pool"]
 
@@ -409,9 +405,9 @@ async def request_files(
             user_id,
             json.dumps(sent_messages),
             warning.message_id,
-0,
-0,
-anime_id,
+            0,
+            0,
+            anime_id,
             season_id,
             quality,
             delete_at,
@@ -424,7 +420,7 @@ anime_id,
             user_id,
             sent_messages,
             warning.message_id,
-            follow.message_id,
+            0,
             anime_id,
             season_id,
             quality,
@@ -438,6 +434,8 @@ anime_id,
 # =====================================
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+    # Special Zyn AfterDark link
     if context.args and context.args[0].lower() == "afterdark":
         await update.message.reply_text(
             "🌙 <b>Welcome!</b>\n\n"
@@ -452,6 +450,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             ]]),
         )
         return
+
+    # Existing anime deep links
     if context.args:
         payload = context.args[0].lower()
 
@@ -482,6 +482,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         )
                         return
 
+    # Normal /start remains unchanged
     await update.message.reply_text(
         "🎬 Welcome to Zyn Anime Bot!\n\n"
         "📚 Find your anime in our main channel:\n"
