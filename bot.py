@@ -188,11 +188,9 @@ async def deletion_timer(
         await bot.send_message(
             chat_id=user_id,
             text=(
-                "<blockquote>"
                 "<b>❌ FILES DELETED</b>\n\n"
-                "Your requested files have expired.\n"
-                "You can request them again below."
-                "</blockquote>"
+"Your requested files have expired.\n"
+"You can request them again below."
             ),
             parse_mode=ParseMode.HTML,
             reply_markup=keyboard,
@@ -393,28 +391,6 @@ async def request_files(
     follow = await context.bot.send_message(
         chat_id=user_id,
         text=(
-            "🎌 STAY CONNECTED WITH ZYN ANIME\n\n"
-            "Get new episodes, updates, and more anime from our channels!"
-        ),
-        reply_markup=InlineKeyboardMarkup([
-            [
-                InlineKeyboardButton(
-                    "📢 Main Channel",
-                    url="https://t.me/ZynAnimeHub",
-                ),
-                InlineKeyboardButton(
-                    "🔄 Anime Updates",
-                    url="https://t.me/ZynAnime",
-                ),
-            ],
-            [
-                InlineKeyboardButton(
-                    "🔞 Hentai Channel",
-                    url="https://t.me/ZynHentaiVault",
-                ),
-            ],
-        ]),
-    )
 
     delete_at = time.time() + DELETE_AFTER
     pool = context.application.bot_data["db_pool"]
@@ -433,9 +409,9 @@ async def request_files(
             user_id,
             json.dumps(sent_messages),
             warning.message_id,
-            0,
-            follow.message_id,
-            anime_id,
+0,
+0,
+anime_id,
             season_id,
             quality,
             delete_at,
@@ -462,6 +438,20 @@ async def request_files(
 # =====================================
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if context.args and context.args[0].lower() == "afterdark":
+        await update.message.reply_text(
+            "🌙 <b>Welcome!</b>\n\n"
+            "You're just one step away from Zyn AfterDark.\n\n"
+            "Tap the button below to continue and access the private channel. 👇",
+            parse_mode=ParseMode.HTML,
+            reply_markup=InlineKeyboardMarkup([[
+                InlineKeyboardButton(
+                    "🌙 Click Here to Continue",
+                    url="https://t.me/ZynAfterDarkBot",
+                )
+            ]]),
+        )
+        return
     if context.args:
         payload = context.args[0].lower()
 
