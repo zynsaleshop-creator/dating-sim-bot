@@ -453,7 +453,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=InlineKeyboardMarkup([[
                 InlineKeyboardButton(
                     "🌙 Click Here to Continue",
-                    url="https://t.me/ZynAfterDarkBot",
+                    url="https://t.me/ZynAfterDarkBot?start=afterdark",
                 )
             ]]),
         )
