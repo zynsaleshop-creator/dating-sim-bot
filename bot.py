@@ -1,3 +1,4 @@
+
 import os
 import asyncio
 import json
@@ -25,7 +26,13 @@ DATABASE_URL = os.environ["DATABASE_URL"]
 STORAGE_CHAT_ID = -1003947631814
 
 CHANNEL = "@ZynAnimeHub"
-REQUIRED_CHANNELS = ["@ZynAnime", "@ZynHentaiVault"]
+
+REQUIRED_CHANNELS = [
+    "@ZynAnime",
+    -1003942791182,
+]
+
+PRIVATE_HENTAI_INVITE = "https://t.me/+EuPT7UuAynBlZDQ0"
 
 DELETE_AFTER = 15 * 60
 
@@ -272,6 +279,7 @@ async def is_member(context, user_id):
                 user_id=user_id,
             )
             return member.status in valid
+
         except Exception as error:
             logger.warning(
                 "Membership check failed for %s: %s",
@@ -294,8 +302,8 @@ def membership_keyboard(anime_id, season_id, quality):
             url="https://t.me/ZynAnime",
         )],
         [InlineKeyboardButton(
-            "🔞 Join Hentai Channel",
-            url="https://t.me/ZynHentaiVault",
+            "🌙 Join Private HentaiVault",
+            url=PRIVATE_HENTAI_INVITE,
         )],
         [InlineKeyboardButton(
             "♻️ Try Again",
@@ -342,7 +350,7 @@ async def request_files(
                 "🔒 You must join both required channels "
                 "before requesting anime files:\n\n"
                 "• @ZynAnime\n"
-                "• @ZynHentaiVault"
+                "• Private HentaiVault Channel"
             ),
             reply_markup=membership_keyboard(
                 anime_id, season_id, quality
